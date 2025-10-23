@@ -198,7 +198,7 @@ window.saveGraphData = async function() {
 function updateConnectionStatusUI(connected) {
     const statusElement = document.getElementById('connection-status');
     const disconnectBtn = document.getElementById('disconnect-btn');
-    const connectBtn = document.getElementById('connect-neo4j-btn');
+    const connectBtn = document.getElementById('connect-btn');
     const executeQueryBtn = document.getElementById('execute-query-btn');
     const saveGraphBtn = document.getElementById('save-graph-btn');
     

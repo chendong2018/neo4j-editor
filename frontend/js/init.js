@@ -442,12 +442,20 @@ function setupNodeTypeListeners() {
         nodeTypeButtons[0].click();
     }
     
-    // 添加节点类型按钮
+    // 添加节点类型按钮 - 改进模态框显示逻辑
     document.getElementById('add-node-type-btn')?.addEventListener('click', () => {
-        document.getElementById('add-node-type-modal')?.classList.remove('hidden');
+        const modal = document.getElementById('add-node-type-modal');
+        if (modal) {
+            console.log('Opening add node type modal');
+            modal.classList.remove('hidden');
+            // 确保模态框在z-index较高的层级
+            modal.style.zIndex = '100';
+        } else {
+            console.error('Add node type modal not found');
+        }
     });
     
-    // 保存节点类型
+    // 保存节点类型 - 适配HTML中的ID
     document.getElementById('save-node-type-btn')?.addEventListener('click', () => {
         const nodeTypeName = document.getElementById('node-type-name')?.value.trim();
         if (nodeTypeName) {
@@ -460,6 +468,47 @@ function setupNodeTypeListeners() {
         } else {
             // 替换showToast为console.log
             console.log('节点类型名称不能为空');
+        }
+    });
+    
+    // 添加节点类型模态框关闭按钮事件监听
+    document.getElementById('close-add-node-type-modal')?.addEventListener('click', () => {
+        const modal = document.getElementById('add-node-type-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    });
+    
+    // 添加节点类型模态框取消按钮事件监听
+    document.getElementById('cancel-add-node-type-btn')?.addEventListener('click', () => {
+        const modal = document.getElementById('add-node-type-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    });
+    
+    // 添加节点类型模态框添加按钮事件监听
+    document.getElementById('confirm-add-node-type-btn')?.addEventListener('click', () => {
+        const nodeTypeName = document.getElementById('new-node-type-name')?.value;
+        const nodeTypeIcon = document.getElementById('new-node-type-icon')?.value;
+        const nodeTypeColor = document.getElementById('new-node-type-color')?.value;
+        
+        if (nodeTypeName) {
+            console.log('Saving node type:', { name: nodeTypeName, icon: nodeTypeIcon, color: nodeTypeColor });
+            
+            // 直接实现添加节点类型的逻辑
+            addNodeTypeButton(nodeTypeName, nodeTypeIcon, nodeTypeColor);
+            
+            // 关闭模态框
+            document.getElementById('add-node-type-modal')?.classList.add('hidden');
+            
+            // 清空输入框
+            const nodeTypeNameInput = document.getElementById('new-node-type-name');
+            if (nodeTypeNameInput) nodeTypeNameInput.value = '';
+            
+            console.log('Node type added successfully');
+        } else {
+            console.error('Node type name cannot be empty');
         }
     });
 }
@@ -515,17 +564,26 @@ function setupRelationshipTypeListeners() {
         relTypeButtons[0].click();
     }
     
-    // 添加关系类型按钮
+    // 添加关系类型按钮 - 改进模态框显示逻辑
     document.getElementById('add-relationship-type-btn')?.addEventListener('click', () => {
-        document.getElementById('add-relationship-type-modal')?.classList.remove('hidden');
+        const modal = document.getElementById('add-relationship-type-modal');
+        if (modal) {
+            console.log('Opening add relationship type modal');
+            modal.classList.remove('hidden');
+            // 确保模态框在z-index较高的层级
+            modal.style.zIndex = '100';
+        } else {
+            console.error('Add relationship type modal not found');
+        }
     });
     
-    // 保存关系类型
+    // 保存关系类型 - 适配HTML中的ID
     document.getElementById('save-relationship-type-btn')?.addEventListener('click', () => {
         const relTypeName = document.getElementById('relationship-type-name')?.value.trim();
         if (relTypeName) {
             addRelationshipTypeButton(relTypeName);
-            document.getElementById('add-relationship-type-modal')?.classList.add('hidden');
+            const modal = document.getElementById('add-relationship-type-modal');
+            if (modal) modal.classList.add('hidden');
             const relationshipTypeNameInput = document.getElementById('relationship-type-name');
             if (relationshipTypeNameInput) relationshipTypeNameInput.value = '';
             // 替换showToast为console.log
@@ -535,6 +593,52 @@ function setupRelationshipTypeListeners() {
             console.log('关系类型名称不能为空');
         }
     });
+    
+    // 添加关系类型模态框关闭按钮事件监听
+    document.getElementById('close-add-relationship-type-modal')?.addEventListener('click', () => {
+        const modal = document.getElementById('add-relationship-type-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    });
+    
+    // 添加关系类型模态框取消按钮事件监听
+    document.getElementById('cancel-add-relationship-type-btn')?.addEventListener('click', () => {
+        const modal = document.getElementById('add-relationship-type-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    });
+    
+    // 添加关系类型模态框添加按钮事件监听
+    document.getElementById('confirm-add-relationship-type-btn')?.addEventListener('click', () => {
+        const relTypeName = document.getElementById('new-relationship-type-name')?.value;
+        const relTypeColor = document.getElementById('new-relationship-type-color')?.value;
+        
+        if (relTypeName) {
+            console.log('Saving relationship type:', { name: relTypeName, color: relTypeColor });
+            
+            // 直接实现添加关系类型的逻辑
+            addRelationshipTypeButton(relTypeName, relTypeColor);
+            
+            // 调用HTML中已定义的saveRelationshipTypeStyles函数
+            if (typeof window.saveRelationshipTypeStyles === 'function') {
+                window.saveRelationshipTypeStyles();
+            }
+            
+            // 关闭模态框
+            document.getElementById('add-relationship-type-modal')?.classList.add('hidden');
+            
+            // 清空输入框
+            const relTypeNameInput = document.getElementById('new-relationship-type-name');
+            if (relTypeNameInput) relTypeNameInput.value = '';
+            
+            console.log('Relationship type added successfully');
+        } else {
+            console.error('Relationship type name cannot be empty');
+        }
+    });
+
 }
 
 /**
@@ -569,18 +673,39 @@ function addRelationshipTypeButton(typeName) {
  * 设置Neo4j连接监听器
  */
 function setupNeo4jConnectionListeners() {
-    // 打开连接对话框
-    document.getElementById('connect-neo4j-btn')?.addEventListener('click', () => {
-        document.getElementById('connect-neo4j-modal')?.classList.remove('hidden');
+    // 打开连接对话框 - 使用正确的按钮ID
+    document.getElementById('connect-btn')?.addEventListener('click', () => {
+        const modal = document.getElementById('connect-modal');
+        if (modal) {
+            console.log('Opening connect modal');
+            modal.classList.remove('hidden');
+            // 确保对话框在z-index较高的层级
+            modal.style.zIndex = '100';
+        } else {
+            console.error('Connect modal not found');
+        }
     });
     
+    // 关闭连接对话框 - 添加关闭按钮事件监听
+    document.getElementById('close-connect-modal')?.addEventListener('click', () => {
+        document.getElementById('connect-modal')?.classList.add('hidden');
+    });
+    
+    // 添加连接对话框取消按钮事件监听
+    document.getElementById('cancel-connect-btn')?.addEventListener('click', () => {
+        document.getElementById('connect-modal')?.classList.add('hidden');
+    });
+    
+    // 确保连接对话框存在，如果不存在则记录错误
+    if (!document.getElementById('connect-modal')) {
+        console.error('Neo4j connection modal element does not exist in the DOM');
+    }
+    
     // 连接数据库
-    document.getElementById('save-connection-btn')?.addEventListener('click', async () => {
-        const host = document.getElementById('neo4j-host')?.value.trim() || 'localhost';
-        const port = document.getElementById('neo4j-port')?.value.trim() || '7687';
-        const username = document.getElementById('neo4j-username')?.value.trim() || 'neo4j';
+    document.getElementById('confirm-connect-btn')?.addEventListener('click', async () => {
+        const uri = document.getElementById('neo4j-uri')?.value.trim() || 'bolt://localhost:7687';
+        const user = document.getElementById('neo4j-user')?.value.trim() || 'neo4j';
         const password = document.getElementById('neo4j-password')?.value.trim();
-        const database = document.getElementById('neo4j-database')?.value.trim() || 'neo4j';
         
         if (!password) {
             // 替换showToast为console.log
@@ -588,17 +713,11 @@ function setupNeo4jConnectionListeners() {
             return;
         }
         
-        const config = {
-            host,
-            port,
-            username,
-            password,
-            database
-        };
+        console.log('Connecting to Neo4j:', { uri, user });
+        const success = await connectToNeo4j(uri, user, password);
         
-        const success = await connectToNeo4j(config);
         if (success) {
-            document.getElementById('connect-neo4j-modal')?.classList.add('hidden');
+            document.getElementById('connect-modal')?.classList.add('hidden');
             const neo4jPasswordInput = document.getElementById('neo4j-password');
             if (neo4jPasswordInput) neo4jPasswordInput.value = '';
             
@@ -606,7 +725,7 @@ function setupNeo4jConnectionListeners() {
             try {
                 await loadGraphData(false);
                 // 替换showToast为console.log
-            console.log('图数据加载成功');
+                console.log('图数据加载成功');
             } catch (error) {
                 console.warn('加载图数据失败，但连接已成功建立');
             }
