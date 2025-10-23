@@ -62,11 +62,9 @@ window.getBasicStyles = function() {
  * 初始化双视图Cytoscape实例
  */
 window.initializeDualViews = function() {
-    console.log('Neo4j Editor: Initializing dual views');
-    
     // 检查Cytoscape是否已加载
     if (typeof cytoscape === 'undefined') {
-        console.error('Neo4j Editor: Cytoscape library not loaded');
+        showToast('错误：Cytoscape库未加载', 'error');
         return false;
     }
     
@@ -75,7 +73,7 @@ window.initializeDualViews = function() {
     const networkContainer = document.getElementById('cy-network');
     
     if (!treeContainer || !networkContainer) {
-        console.error('Neo4j Editor: Container elements not found');
+        showToast('错误：未找到图表容器元素', 'error');
         return false;
     }
     
@@ -95,7 +93,6 @@ window.initializeDualViews = function() {
                     padding: 30
                 }
             });
-            console.log('Neo4j Editor: Created Tree view instance');
         }
         
         // 创建Network视图实例
@@ -123,7 +120,6 @@ window.initializeDualViews = function() {
                     minTemp: 1.0
                 }
             });
-            console.log('Neo4j Editor: Created Network view instance');
         }
         
         // 创建共享数据存储
@@ -135,35 +131,40 @@ window.initializeDualViews = function() {
             };
         }
         
-        console.log('Neo4j Editor: Dual views initialized successfully');
+        // 初始化右键菜单和键盘事件
+        if (typeof window.initializeContextMenu === 'function') {
+            window.initializeContextMenu();
+        }
+        if (typeof window.setupKeyboardEvents === 'function') {
+            window.setupKeyboardEvents();
+        }
+        if (typeof window.setupElementContextMenu === 'function') {
+            window.setupElementContextMenu();
+        }
+        
         return true;
     } catch (error) {
-        console.error('Neo4j Editor: Error initializing Cytoscape instances:', error);
+        handleError('初始化Cytoscape实例失败', error);
         return false;
     }
 }
 
 /**
- * 创建备用Cytoscape实例
+ * 创建备用Cytoscape实例（简化版）
  */
-window.fallbackInitializationInProgress = false;
 window.createFallbackCytoscapeInstances = function() {
-    // 防止重复调用
-    if (window.fallbackInitializationInProgress) {
-        console.log('Neo4j Editor: Fallback initialization already in progress, skipping');
+    // 检查基础依赖
+    if (typeof cytoscape === 'undefined') {
+        showToast('错误：Cytoscape库未加载', 'error');
         return false;
     }
-    
-    window.fallbackInitializationInProgress = true;
-    console.log('Neo4j Editor: Creating fallback Cytoscape instances');
     
     const basicStyles = getBasicStyles();
     const treeContainer = document.getElementById('cy-tree');
     const networkContainer = document.getElementById('cy-network');
     
     if (!treeContainer || !networkContainer) {
-        console.error('Neo4j Editor: Container elements not found');
-        window.fallbackInitializationInProgress = false;
+        showToast('错误：未找到图表容器元素', 'error');
         return false;
     }
     
@@ -176,7 +177,6 @@ window.createFallbackCytoscapeInstances = function() {
                 elements: { nodes: [], edges: [] },
                 layout: { name: 'cose' }
             });
-            console.log('Neo4j Editor: Created fallback window.cyTree instance');
         }
         
         // 创建network实例
@@ -187,15 +187,27 @@ window.createFallbackCytoscapeInstances = function() {
                 elements: { nodes: [], edges: [] },
                 layout: { name: 'cose' }
             });
-            console.log('Neo4j Editor: Created fallback window.cyNetwork instance');
         }
         
-        console.log('Neo4j Editor: Fallback initialization completed');
-        window.fallbackInitializationInProgress = false;
+        // 确保共享数据存在
+        if (!window.sharedGraphData) {
+            window.sharedGraphData = { nodes: [], edges: [], selectedElement: null };
+        }
+        
+        // 初始化右键菜单和键盘事件
+        if (typeof window.initializeContextMenu === 'function') {
+            window.initializeContextMenu();
+        }
+        if (typeof window.setupKeyboardEvents === 'function') {
+            window.setupKeyboardEvents();
+        }
+        if (typeof window.setupElementContextMenu === 'function') {
+            window.setupElementContextMenu();
+        }
+        
         return true;
     } catch (error) {
-        console.error('Neo4j Editor: Error creating fallback instances:', error);
-        window.fallbackInitializationInProgress = false;
+        handleError('创建备用Cytoscape实例失败', error);
         return false;
     }
 }
@@ -270,18 +282,8 @@ window.addNodeToViews = function(node) {
             window.cyTree.add(node);
             window.cyNetwork.add(nodeCopy);
             
-            // 更新共享数据 - 确保nodes和edges数组都存在
-            if (!window.sharedGraphData) {
-                window.sharedGraphData = { nodes: [], edges: [] };
-            } else {
-                if (!Array.isArray(window.sharedGraphData.nodes)) {
-                    window.sharedGraphData.nodes = [];
-                }
-                if (!Array.isArray(window.sharedGraphData.edges)) {
-                    window.sharedGraphData.edges = [];
-                }
-            }
-            
+            // 更新共享数据
+            ensureSharedGraphData();
             window.sharedGraphData.nodes.push(node);
             
             // 更新计数
@@ -289,12 +291,28 @@ window.addNodeToViews = function(node) {
             
             return true;
         } catch (error) {
-            console.error('Neo4j Editor: Error in addNodeToViews:', error);
+            handleError('添加节点失败', error);
             return false;
         }
     }
     return false;
 }
+
+/**
+ * 确保共享数据对象正确初始化
+ */
+window.ensureSharedGraphData = function() {
+    if (!window.sharedGraphData) {
+        window.sharedGraphData = { nodes: [], edges: [], selectedElement: null };
+    } else {
+        if (!Array.isArray(window.sharedGraphData.nodes)) {
+            window.sharedGraphData.nodes = [];
+        }
+        if (!Array.isArray(window.sharedGraphData.edges)) {
+            window.sharedGraphData.edges = [];
+        }
+    }
+};
 
 /**
  * 在两个视图中添加边
@@ -308,7 +326,7 @@ window.addEdgeToViews = function(edge) {
         window.cyNetwork.add(edgeCopy);
         
         // 更新共享数据
-        if (!window.sharedGraphData) window.sharedGraphData = { nodes: [], edges: [] };
+        ensureSharedGraphData();
         window.sharedGraphData.edges.push(edge);
         
         // 更新计数
@@ -362,8 +380,7 @@ window.clearAllViews = function() {
         // 更新计数
         updateElementCounts();
         
-        // 替换showToast为console.log
-    console.log('All elements cleared');
+        showToast('所有元素已清空');
     }
 }
 

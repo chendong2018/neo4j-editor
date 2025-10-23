@@ -228,10 +228,10 @@ function handleNodeCreationTap(instance, event) {
         if (success) {
             debugLog(`Created new node: ${newNode.data.id}`);
         } else {
-            console.error('Neo4j Editor: Failed to add node to views');
+            showToast('Failed to add node to views', 'error');
         }
     } catch (error) {
-        console.error('Neo4j Editor: Error creating node:', error);
+        handleError('Error creating node', error);
     }
 }
 
@@ -245,7 +245,7 @@ function handleRelationshipCreationTap(instance, target, event) {
     try {
         // 安全检查
         if (!target || typeof target.data !== 'function') {
-            console.error('Invalid target in handleRelationshipCreationTap');
+            handleError('Invalid target in handleRelationshipCreationTap');
             return;
         }
         
@@ -257,15 +257,15 @@ function handleRelationshipCreationTap(instance, target, event) {
             // 高亮显示源节点
             if (typeof target.addClass === 'function') {
                 target.addClass('source-node');
+                showToast('Selected source node', 'info');
             }
-            console.log(`Selected source node: ${nodeId}`);
         } else if (window.sourceNode === nodeId) {
             // 点击同一个节点，取消选择
             window.sourceNode = null;
             if (typeof target.removeClass === 'function') {
                 target.removeClass('source-node');
+                showToast('Source node selection cleared', 'info');
             }
-            console.log('Source node selection cleared');
         } else {
             // 优先从window.selectedRelationshipType获取关系类型
             let relType = window.selectedRelationshipType;
@@ -289,8 +289,6 @@ function handleRelationshipCreationTap(instance, target, event) {
                 relType = 'RELATES_TO';
             }
             
-            console.log('Creating relationship with type:', relType);
-            
             // 创建边数据，确保是edges组
             const newEdge = {
                 group: 'edges', // 明确指定是边
@@ -309,7 +307,7 @@ function handleRelationshipCreationTap(instance, target, event) {
             
             if (success) {
                 debugLog(`Created new edge: ${newEdge.data.id} between ${window.sourceNode} and ${nodeId}`);
-                console.log(`Created relationship ${relType}`);
+                showToast(`Created relationship ${relType}`, 'success');
             }
             
             // 清除源节点
@@ -320,10 +318,9 @@ function handleRelationshipCreationTap(instance, target, event) {
             }
         }
     } catch (error) {
-        console.error('Neo4j Editor: Error creating relationship:', error);
+        handleError('Error creating relationship', error);
         window.sourceNode = null;
-        // 替换showToast为console.log
-                console.log('Failed to create relationship');
+        showToast('Failed to create relationship', 'error');
     }
 }
 
@@ -333,27 +330,31 @@ function handleRelationshipCreationTap(instance, target, event) {
  * @param {Object} sourceInstance - 源实例
  */
 function synchronizeSelection(selectedElement, sourceInstance) {
-    // 更新共享数据中的选中元素
-    if (!window.sharedGraphData) window.sharedGraphData = { selectedElement: null };
-    window.sharedGraphData.selectedElement = selectedElement.data();
-    
-    // 如果是节点，更新右侧属性面板
-    if (selectedElement.isNode()) {
-        updateNodePropertiesPanel(selectedElement.data());
-    } else if (selectedElement.isEdge()) {
-        updateRelationshipPropertiesPanel(selectedElement.data());
-    }
-    
-    // 同步另一个视图的选择状态
-    const otherInstance = sourceInstance === window.cyTree ? window.cyNetwork : window.cyTree;
-    if (otherInstance) {
-        // 清除其他实例的选择
-        otherInstance.elements().unselect();
-        // 选中对应元素
-        const correspondingElement = otherInstance.getElementById(selectedElement.id());
-        if (correspondingElement) {
-            correspondingElement.select();
+    try {
+        // 确保共享数据对象存在
+        if (!window.sharedGraphData) window.sharedGraphData = { selectedElement: null };
+        window.sharedGraphData.selectedElement = selectedElement.data();
+        
+        // 根据元素类型更新相应的属性面板
+        if (selectedElement.isNode()) {
+            updateNodePropertiesPanel(selectedElement.data());
+        } else if (selectedElement.isEdge()) {
+            updateRelationshipPropertiesPanel(selectedElement.data());
         }
+        
+        // 同步另一个视图的选择状态
+        const otherInstance = sourceInstance === window.cyTree ? window.cyNetwork : window.cyTree;
+        if (otherInstance && typeof otherInstance.elements === 'function') {
+            // 清除其他实例的选择
+            otherInstance.elements().unselect();
+            // 选中对应元素
+            const correspondingElement = otherInstance.getElementById(selectedElement.id());
+            if (correspondingElement) {
+                correspondingElement.select();
+            }
+        }
+    } catch (error) {
+        handleError('Error synchronizing selection', error);
     }
 }
 
@@ -362,31 +363,34 @@ function synchronizeSelection(selectedElement, sourceInstance) {
  * @param {Object} nodeData - 节点数据
  */
 function updateNodePropertiesPanel(nodeData) {
-    // 这里应该实现更新节点属性面板的逻辑
-    console.log('Neo4j Editor: Update node properties panel with data:', nodeData);
-    
-    // 显示节点属性面板，隐藏关系属性面板
-    const panel = document.getElementById('node-properties-panel');
-    const relPanel = document.getElementById('relationship-properties-panel');
-    
-    if (panel && relPanel) {
-        panel.classList.remove('hidden');
-        relPanel.classList.add('hidden');
+    try {
+        debugLog('Update node properties panel with data:', nodeData);
         
-        // 设置面板标题
-        const panelHeader = panel.querySelector('.panel-header span') || panel.querySelector('.panel-title');
-        if (panelHeader) {
-            panelHeader.textContent = 'Node Properties';
+        // 显示节点属性面板，隐藏关系属性面板
+        const panel = document.getElementById('node-properties-panel');
+        const relPanel = document.getElementById('relationship-properties-panel');
+        
+        if (panel && relPanel) {
+            panel.classList.remove('hidden');
+            relPanel.classList.add('hidden');
+            
+            // 设置面板标题
+            const panelHeader = panel.querySelector('.panel-header span') || panel.querySelector('.panel-title');
+            if (panelHeader) {
+                panelHeader.textContent = 'Node Properties';
+            }
+            
+            // 设置节点标签
+            const nodeLabelInput = document.getElementById('node-label');
+            if (nodeLabelInput && nodeData.label) {
+                nodeLabelInput.value = nodeData.label;
+            }
+            
+            // 更新属性输入字段
+            // 这里可以根据节点的实际属性动态生成或更新输入字段
         }
-        
-        // 设置节点标签
-        const nodeLabelInput = document.getElementById('node-label');
-        if (nodeLabelInput && nodeData.label) {
-            nodeLabelInput.value = nodeData.label;
-        }
-        
-        // 更新属性输入字段
-        // 这里可以根据节点的实际属性动态生成或更新输入字段
+    } catch (error) {
+        handleError('Error updating node properties panel', error);
     }
 }
 
@@ -395,32 +399,35 @@ function updateNodePropertiesPanel(nodeData) {
  * @param {Object} edgeData - 关系数据
  */
 function updateRelationshipPropertiesPanel(edgeData) {
-    // 这里应该实现更新关系属性面板的逻辑
-    console.log('Neo4j Editor: Update relationship properties panel with data:', edgeData);
-    
-    // 显示关系属性面板，隐藏节点属性面板
-    const panel = document.getElementById('node-properties-panel');
-    const relPanel = document.getElementById('relationship-properties-panel');
-    
-    if (panel && relPanel) {
-        panel.classList.add('hidden');
-        relPanel.classList.remove('hidden');
+    try {
+        debugLog('Update relationship properties panel with data:', edgeData);
         
-        // 设置面板标题
-        const panelHeader = relPanel.querySelector('.panel-header span') || relPanel.querySelector('.panel-title');
-        if (panelHeader) {
-            panelHeader.textContent = 'Relationship Properties';
-        }
+        // 显示关系属性面板，隐藏节点属性面板
+        const panel = document.getElementById('node-properties-panel');
+        const relPanel = document.getElementById('relationship-properties-panel');
         
-        // 设置关系标签
-        const relLabelInput = document.getElementById('relationship-label');
-        if (relLabelInput && edgeData.label) {
-            relLabelInput.value = edgeData.label;
+        if (panel && relPanel) {
+            panel.classList.add('hidden');
+            relPanel.classList.remove('hidden');
+            
+            // 设置面板标题
+            const panelHeader = relPanel.querySelector('.panel-header span') || relPanel.querySelector('.panel-title');
+            if (panelHeader) {
+                panelHeader.textContent = 'Relationship Properties';
+            }
+            
+            // 设置关系标签
+            const relLabelInput = document.getElementById('relationship-label');
+            if (relLabelInput && edgeData.label) {
+                relLabelInput.value = edgeData.label;
+            }
+            
+            // 确保边数据包含properties对象
+            if (!edgeData.properties) {
+                edgeData.properties = {};
+            }
         }
-        
-        // 确保边数据包含properties对象
-        if (!edgeData.properties) {
-            edgeData.properties = {};
-        }
+    } catch (error) {
+        handleError('Error updating relationship properties panel', error);
     }
 }

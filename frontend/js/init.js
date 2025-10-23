@@ -2,43 +2,36 @@
  * 应用初始化模块
  */
 
-// 立即定义核心工具函数，确保在任何代码执行前可用
-console.log('Neo4j Editor: init.js loading, defining core functions');
+// 应用初始化模块 - 使用utils.js中定义的核心函数
+console.log('Neo4j Editor: init.js loading');
 
-// 直接定义在全局作用域
-function showToast(message, type) {
-    console.log('showToast called:', message, type);
-    alert(message || '操作成功');
-    return true;
+// 确保核心函数可用
+function ensureCoreFunctions() {
+    const requiredFunctions = ['showToast', 'debugLog', 'handleError'];
+    const missingFunctions = requiredFunctions.filter(fn => typeof window[fn] !== 'function');
+    
+    if (missingFunctions.length > 0) {
+        console.warn(`Neo4j Editor: Missing core functions: ${missingFunctions.join(', ')}`);
+        
+        // 作为后备，定义最小化版本
+        if (typeof window.showToast !== 'function') {
+            window.showToast = (message) => { alert(message || '操作成功'); return true; };
+        }
+        if (typeof window.debugLog !== 'function') {
+            window.debugLog = (message) => { console.log('Neo4j Editor:', message); return true; };
+        }
+        if (typeof window.handleError !== 'function') {
+            window.handleError = (title, error) => {
+                console.error('Error:', title, error);
+                alert((title || '错误') + ': ' + (error instanceof Error ? error.message : String(error)));
+                return true;
+            };
+        }
+    }
 }
 
-function debugLog(message) {
-    console.log('Neo4j Editor:', message);
-    return true;
-}
-
-function handleError(title, error) {
-    console.error('Error:', title, error);
-    alert((title || '错误') + ': ' + (error instanceof Error ? error.message : String(error)));
-    return true;
-}
-
-// 强制挂载到window对象
-window.showToast = showToast;
-window.debugLog = debugLog;
-window.handleError = handleError;
-
-console.log('Neo4j Editor: Core functions defined in init.js:', {
-    showToast: typeof window.showToast,
-    debugLog: typeof window.debugLog,
-    handleError: typeof window.handleError
-});
-
-// 立即测试函数是否可用
-if (typeof window.showToast === 'function') {
-    console.log('Neo4j Editor: showToast function is available in init.js');
-    // 不要在这里调用，以免在页面加载时弹出提示
-}
+// 确保核心函数可用
+ensureCoreFunctions();
 
 // 添加缺失的checkAllElementsExist函数
 function checkAllElementsExist(elementIds) {
@@ -719,8 +712,83 @@ function displayQueryResults(results) {
  * 设置右键菜单监听器
  */
 function setupContextMenuListeners() {
+    console.log('Neo4j Editor: 设置右键菜单监听器');
+    
+    // 首先确保utils.js中的初始化函数被调用
+    if (typeof window.initializeContextMenu === 'function') {
+        console.log('Neo4j Editor: 调用window.initializeContextMenu初始化右键菜单');
+        window.initializeContextMenu();
+    }
+    
+    if (typeof window.setupElementContextMenu === 'function') {
+        console.log('Neo4j Editor: 调用window.setupElementContextMenu设置元素右键菜单');
+        window.setupElementContextMenu();
+    }
+    
+    if (typeof window.setupKeyboardEvents === 'function') {
+        console.log('Neo4j Editor: 调用window.setupKeyboardEvents设置键盘事件');
+        window.setupKeyboardEvents();
+    }
+    
+    // 添加右键菜单点击处理逻辑
+    // 先尝试移除旧的事件监听器，避免重复绑定
+    const newDocClickHandler = function(evt) {
+        const menu = document.getElementById('context-menu');
+        // 如果点击不在菜单内且菜单可见，则隐藏菜单
+        if (menu && menu.style.display === 'block' && !menu.contains(evt.target)) {
+            menu.style.display = 'none';
+            console.log('Neo4j Editor: 点击外部隐藏右键菜单');
+        }
+    };
+    
+    // 先移除旧的事件监听器
+    const oldHandlers = document._contextMenuClickHandler;
+    if (oldHandlers) {
+        document.removeEventListener('click', oldHandlers);
+    }
+    
+    // 添加新的事件监听器并保存引用
+    document.addEventListener('click', newDocClickHandler);
+    document._contextMenuClickHandler = newDocClickHandler;
+    
+    // 为删除选项添加直接的点击事件处理
+    const deleteOption = document.getElementById('delete-option');
+    if (deleteOption) {
+        // 先移除可能存在的旧事件监听器
+        const newDeleteOption = deleteOption.cloneNode(true);
+        deleteOption.parentNode.replaceChild(newDeleteOption, deleteOption);
+        
+        newDeleteOption.addEventListener('click', function(evt) {
+            evt.stopPropagation();
+            console.log('Neo4j Editor: 删除选项被点击');
+            const menu = document.getElementById('context-menu');
+            const elementId = menu ? menu.dataset.elementId : null;
+            
+            if (elementId && typeof removeElementFromViews === 'function') {
+                console.log(`Neo4j Editor: 尝试删除元素ID: ${elementId}`);
+                removeElementFromViews(elementId);
+            } else {
+                console.log(`Neo4j Editor: 无法删除元素，元素ID: ${elementId}`);
+            }
+            
+            // 隐藏菜单
+            if (menu) {
+                menu.style.display = 'none';
+            }
+        });
+    }
+    
+    // 为全局document添加contextmenu事件，但是只在非Cytoscape区域触发
     document.addEventListener('contextmenu', (event) => {
-        showContextMenu(event);
+        // 检查事件目标是否在Cytoscape容器内
+        const isInCytoscape = event.target.closest('#cy-tree') || event.target.closest('#cy-network') || 
+                             event.target.closest('#tree-container') || event.target.closest('#network-container');
+        
+        // 如果不在Cytoscape容器内，则阻止默认右键菜单
+        if (!isInCytoscape) {
+            event.preventDefault();
+            // 可以在这里添加应用界面其他区域的右键菜单逻辑
+        }
     });
 }
 
@@ -779,8 +847,30 @@ window.appInit = {
 };
 
 // 在DOM加载完成后初始化应用
-document.addEventListener('DOMContentLoaded', async () => {
-    await window.initializeApp();
-});
+    document.addEventListener('DOMContentLoaded', async () => {
+        await window.initializeApp();
+        
+        // 确保Cytoscape实例完全初始化后，延迟调用右键菜单重新初始化
+        setTimeout(() => {
+            console.log('DOM已加载完成，延迟初始化右键菜单...');
+            
+            // 初始化右键菜单
+            if (typeof window.reinitializeContextMenu === 'function') {
+                console.log('调用window.reinitializeContextMenu()');
+                window.reinitializeContextMenu();
+            } else {
+                console.log('window.reinitializeContextMenu函数不存在，尝试直接调用初始化函数');
+                if (typeof setupContextMenuListeners === 'function') {
+                    setupContextMenuListeners();
+                }
+            }
+            
+            // 添加右键菜单测试按钮
+            if (typeof window.addContextMenuTestButton === 'function') {
+                console.log('添加右键菜单测试按钮');
+                window.addContextMenuTestButton();
+            }
+        }, 1000); // 延迟1秒，确保所有实例都已创建
+    });
 
 // 应用初始化由index.html中的DOMContentLoaded事件处理

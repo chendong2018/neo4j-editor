@@ -16,7 +16,7 @@ window.neo4jDriver = null;
  */
 window.connectToNeo4j = async function(config) {
     try {
-        console.log('Neo4j Editor: Attempting to connect to Neo4j with config:', config);
+        debugLog('Attempting to connect to Neo4j with config:', config);
         
         // 保存配置
         window.dbConfig = { ...config };
@@ -37,9 +37,8 @@ window.connectToNeo4j = async function(config) {
         
         if (result.success) {
             window.isConnected = true;
-            // 替换showToast为console.log
-    console.log('成功连接到Neo4j数据库');
-            window.debugLog('Connected to Neo4j database successfully');
+            showToast('成功连接到Neo4j数据库', 'success');
+            debugLog('Connected to Neo4j database successfully');
             
             // 更新UI状态
             updateConnectionStatusUI(true);
@@ -49,9 +48,8 @@ window.connectToNeo4j = async function(config) {
             throw new Error(result.error || '连接失败，未知错误');
         }
     } catch (error) {
-        window.handleError('连接Neo4j数据库失败:', error);
-            // 替换showToast为console.log
-    console.log(`连接失败: ${error.message}`);
+        handleError('连接Neo4j数据库失败:', error);
+        showToast(`连接失败: ${error.message}`, 'error');
         updateConnectionStatusUI(false);
         return false;
     }
@@ -62,7 +60,7 @@ window.connectToNeo4j = async function(config) {
  */
 window.disconnectFromNeo4j = function() {
     try {
-        console.log('Neo4j Editor: Disconnecting from Neo4j database');
+        debugLog('Disconnecting from Neo4j database');
         
         // 在实际应用中，这里会关闭驱动实例
         if (neo4jDriver) {
@@ -73,14 +71,12 @@ window.disconnectFromNeo4j = function() {
         window.isConnected = false;
         window.dbConfig = null;
         
-        // 替换showToast为console.log
-    console.log('已断开与Neo4j数据库的连接');
+        showToast('已断开与Neo4j数据库的连接', 'info');
         updateConnectionStatusUI(false);
         
     } catch (error) {
-        window.handleError('断开连接失败:', error);
-        // 替换showToast为console.log
-    console.log('断开连接失败');
+        handleError('断开连接失败:', error);
+        showToast('断开连接失败', 'error');
     }
 }
 
@@ -96,7 +92,7 @@ window.executeCypherQuery = async function(query, params = {}) {
     }
     
     try {
-        console.log('Neo4j Editor: Executing Cypher query:', query);
+        debugLog('Executing Cypher query:', query);
         
         // 模拟API调用
         const response = await fetch('http://localhost:5000/api/execute-query', {
@@ -113,16 +109,14 @@ window.executeCypherQuery = async function(query, params = {}) {
         const result = await response.json();
         
         if (result.success) {
-            // 替换showToast为console.log
-    console.log(`查询成功，返回 ${result.data.length} 条结果`);
+            showToast(`查询成功，返回 ${result.data.length} 条结果`, 'success');
             return result.data;
         } else {
             throw new Error(result.error || '查询执行失败');
         }
     } catch (error) {
-        window.handleError('Cypher查询执行失败:', error);
-            // 替换showToast为console.log
-    console.log(`查询失败: ${error.message}`);
+        handleError('Cypher查询执行失败:', error);
+        showToast(`查询失败: ${error.message}`, 'error');
         throw error;
     }
 }
@@ -185,16 +179,14 @@ window.saveGraphData = async function() {
         const result = await response.json();
         
         if (result.success) {
-            // 替换showToast为console.log
-    console.log('图数据保存成功');
+            showToast('图数据保存成功', 'success');
             return true;
         } else {
             throw new Error(result.error || '保存失败');
         }
     } catch (error) {
-        window.handleError('保存图数据失败:', error);
-            // 替换showToast为console.log
-    console.log(`保存失败: ${error.message}`);
+        handleError('保存图数据失败:', error);
+        showToast(`保存失败: ${error.message}`, 'error');
         return false;
     }
 }
@@ -347,14 +339,7 @@ function convertNeo4jResultToGraphData(neo4jResult) {
     };
 }
 
-/**
- * 生成唯一ID
- * @param {string} prefix - ID前缀
- * @returns {string} 唯一ID
- */
-function generateId(prefix) {
-    return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-}
+// 使用utils.js中已定义的generateId函数
 
 /**
  * 获取当前连接状态
@@ -374,13 +359,18 @@ window.getDatabaseConfig = function() {
 
 // 导出模块对象到全局
 window.neo4jConnection = {
-    isConnected: window.isConnected,
-    dbConfig: window.dbConfig,
-    connectToNeo4j: window.connectToNeo4j,
-    disconnectFromNeo4j: window.disconnectFromNeo4j,
-    executeCypherQuery: window.executeCypherQuery,
-    loadGraphData: window.loadGraphData,
-    saveGraphData: window.saveGraphData,
-    getConnectionStatus: window.getConnectionStatus,
-    getDatabaseConfig: window.getDatabaseConfig
+    get isConnected() { return window.isConnected; },
+    get dbConfig() { return window.dbConfig; },
+    connectToNeo4j,
+    disconnectFromNeo4j,
+    executeCypherQuery,
+    loadGraphData,
+    saveGraphData,
+    getConnectionStatus,
+    getDatabaseConfig
 };
+
+// 暴露为ES模块（如果支持）
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+    module.exports = window.neo4jConnection;
+}
