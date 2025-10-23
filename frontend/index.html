@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j 图数据库编辑器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Cytoscape.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    <!-- 基础样式 -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        
+        .panel {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .panel-header {
+            border-bottom: 1px solid #333;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .btn {
+            transition: all 0.2s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .active {
+            background-color: #3b82f6 !important;
+        }
+        
+        .cytoscape-container {
+            height: 100%;
+            width: 100%;
+            background-color: #1a1a1a;
+            border-radius: 4px;
+        }
+        
+        .context-menu {
+            background-color: #2d2d2d;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 4px 0;
+            min-width: 160px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+        
+        .context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .context-menu-item:hover {
+            background-color: #3b82f6;
+        }
+        
+        .context-menu-separator {
+            height: 1px;
+            background-color: #444;
+            margin: 4px 0;
+        }
+        
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(2px);
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* 代码编辑器样式 */
+        #cypher-editor {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 0.75rem;
+            color: #e0e0e0;
+            resize: vertical;
+            min-height: 150px;
+        }
+        
+        /* 动画效果 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        /* 加载动画 */
+        .loader {
+            border: 2px solid #333;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        accent: '#3b82f6',
+                        secondary: '#6366f1',
+                        dark: {
+                            100: '#f9fafb',
+                            200: '#f3f4f6',
+                            300: '#e5e7eb',
+                            400: '#d1d5db',
+                            500: '#9ca3af',
+                            600: '#6b7280',
+                            700: '#4b5563',
+                            800: '#1f2937',
+                            900: '#111827',
+                            950: '#030712'
+                        }
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                },
+            }
+        }
+    </script>
+    <script>
+        // 自定义工具类
+        tailwind.config = {
+            theme: {
+                extend: {
+                    boxShadow: {
+                        'inner-lg': 'inset 0 2px 10px rgba(0, 0, 0, 0.3)',
+                        'glow': '0 0 10px rgba(59, 130, 246, 0.5)',
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            }
+            .bg-blur {
+                backdrop-filter: blur(8px);
+            }
+            .scrollbar-hidden::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hidden {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+    <!-- 顶部导航栏 -->
+    <header class="bg-gray-900 border-b border-gray-800 py-3 px-4 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+            <i class="fa fa-database text-accent text-2xl"></i>
+            <h1 class="text-xl font-bold text-white">Neo4j 图数据库编辑器</h1>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+            <div id="connection-status" class="text-gray-400 flex items-center">
+                <span id="connection-status-text">未连接</span>
+                <div class="ml-2 w-2 h-2 rounded-full bg-red-500" id="connection-indicator"></div>
+            </div>
+            
+            <button id="connect-neo4j-btn" class="bg-accent hover:bg-accent/90 text-white px-4 py-2 rounded flex items-center">
+                <i class="fa fa-plug mr-2"></i>
+                连接数据库
+            </button>
+            
+            <button id="disconnect-btn" class="hidden bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center">
+                <i class="fa fa-unplug mr-2"></i>
+                断开连接
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- 左侧面板 -->
+        <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col overflow-y-auto">
+            <!-- 工具按钮 -->
+            <div class="p-4 border-b border-gray-700">
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fa fa-wrench mr-2"></i> 工具
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="delete-btn" class="bg-red-600 hover:bg-red-700 text-white p-2 rounded flex flex-col items-center justify-center">
+                            <i class="fa fa-trash text-lg"></i>
+                            <span class="text-xs mt-1">删除</span>
+                        </button>
+                        <button id="clear-graph-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex flex-col items-center justify-center">
+                            <i class="fa fa-eraser text-lg"></i>
+                            <span class="text-xs mt-1">清除</span>
+                        </button>
+                        <button id="export-graph-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex flex-col items-center justify-center">
+                            <i class="fa fa-download text-lg"></i>
+                            <span class="text-xs mt-1">导出</span>
+                        </button>
+                        <button id="save-graph-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex flex-col items-center justify-center">
+                            <i class="fa fa-save text-lg"></i>
+                            <span class="text-xs mt-1">保存</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 视图切换 -->
+            <div class="p-4 border-b border-gray-700">
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fa fa-eye mr-2"></i> 视图
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <button id="split-view-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-columns mr-2"></i>
+                            拆分视图
+                        </button>
+                        <button id="tree-view-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-sitemap mr-2"></i>
+                            树视图
+                        </button>
+                        <button id="network-view-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-random mr-2"></i>
+                            网络图
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模式控制 -->
+            <div class="p-4 border-b border-gray-700">
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fa fa-magic mr-2"></i> 模式
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <button id="select-mode-btn" class="bg-accent active text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-mouse-pointer mr-2"></i>
+                            选择模式
+                        </button>
+                        <button id="node-mode-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-plus-circle mr-2"></i>
+                            节点模式
+                        </button>
+                        <button id="relationship-mode-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-link mr-2"></i>
+                            关系模式
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 节点类型 -->
+            <div class="p-4 border-b border-gray-700">
+                <div class="panel">
+                    <div class="panel-header flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fa fa-cube mr-2"></i> 节点类型
+                        </div>
+                        <button id="add-node-type-btn" class="text-accent hover:text-accent/80">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </div>
+                    <div id="node-types-container" class="flex flex-wrap gap-2 mt-2">
+                        <button class="node-type-btn bg-accent active text-white p-2 rounded" data-type="Person">Person</button>
+                        <button class="node-type-btn bg-gray-700 hover:bg-gray-600 text-white p-2 rounded" data-type="Organization">Organization</button>
+                        <button class="node-type-btn bg-gray-700 hover:bg-gray-600 text-white p-2 rounded" data-type="Event">Event</button>
+                        <button class="node-type-btn bg-gray-700 hover:bg-gray-600 text-white p-2 rounded" data-type="Location">Location</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关系类型 -->
+            <div class="p-4">
+                <div class="panel">
+                    <div class="panel-header flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fa fa-arrows-h mr-2"></i> 关系类型
+                        </div>
+                        <button id="add-relationship-type-btn" class="text-accent hover:text-accent/80">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </div>
+                    <div id="relationship-types-container" class="flex flex-wrap gap-2 mt-2">
+                        <button class="relationship-type-btn bg-accent active text-white p-2 rounded" data-type="KNOWS">KNOWS</button>
+                        <button class="relationship-type-btn bg-gray-700 hover:bg-gray-600 text-white p-2 rounded" data-type="WORKS_FOR">WORKS_FOR</button>
+                        <button class="relationship-type-btn bg-gray-700 hover:bg-gray-600 text-white p-2 rounded" data-type="PART_OF">PART_OF</button>
+                        <button class="relationship-type-btn bg-gray-700 hover:bg-gray-600 text-white p-2 rounded" data-type="LOCATED_IN">LOCATED_IN</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主画布区域 -->
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <!-- 拆分视图容器 -->
+            <div id="split-view-container" class="flex-1 flex">
+                <!-- 树视图 -->
+                <div id="tree-view-container" class="w-1/2 border-r border-gray-700 h-full flex flex-col">
+                    <div class="bg-gray-800 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
+                        <h3 class="font-medium text-white">树视图</h3>
+                        <span id="node-count" class="text-gray-400 text-sm">0 nodes</span>
+                    </div>
+                    <div id="tree-container" class="flex-1 cytoscape-container">
+                        <div id="cy-tree" class="h-full w-full"></div>
+                    </div>
+                </div>
+                
+                <!-- 网络图 -->
+                <div id="network-view-container" class="w-1/2 h-full flex flex-col">
+                    <div class="bg-gray-800 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
+                        <h3 class="font-medium text-white">网络图</h3>
+                        <span id="edge-count" class="text-gray-400 text-sm">0 edges</span>
+                    </div>
+                    <div id="network-container" class="flex-1 cytoscape-container">
+                        <div id="cy-network" class="h-full w-full"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 单一视图容器 -->
+            <div id="main-cytoscape-container" class="hidden flex-1">
+                <div id="cytoscape-container" class="h-full cytoscape-container">
+                    <div id="cy" class="h-full w-full"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 右侧面板 -->
+        <aside class="w-72 bg-gray-800 border-l border-gray-700 flex flex-col overflow-y-auto">
+            <!-- Cypher 编辑器 -->
+            <div class="p-4 border-b border-gray-700">
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fa fa-code mr-2"></i> Cypher 预览
+                    </div>
+                    <div class="space-y-3 mt-2">
+                        <textarea id="cypher-editor" placeholder="输入 Cypher 查询..." class="w-full"></textarea>
+                        <div class="flex space-x-2">
+                            <button id="execute-query-btn" class="flex-1 bg-accent hover:bg-accent/90 text-white p-2 rounded flex items-center justify-center">
+                                <i class="fa fa-play mr-2"></i>
+                                运行
+                            </button>
+                            <button id="clear-query-btn" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="query-results" class="mt-3 max-h-60 overflow-y-auto text-sm"></div>
+                </div>
+            </div>
+            
+            <!-- 属性面板 -->
+            <div id="node-properties-panel" class="p-4 border-b border-gray-700 hidden">
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fa fa-sliders mr-2"></i> 节点属性
+                    </div>
+                    <div class="space-y-3 mt-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">标签</label>
+                            <input id="node-label" type="text" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                        </div>
+                        <div id="node-properties-list" class="space-y-2">
+                            <!-- 动态生成的属性 -->
+                        </div>
+                        <button id="add-node-property-btn" class="w-full bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-plus mr-2"></i>
+                            添加属性
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="relationship-properties-panel" class="p-4 border-b border-gray-700 hidden">
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fa fa-sliders mr-2"></i> 关系属性
+                    </div>
+                    <div class="space-y-3 mt-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">标签</label>
+                            <input id="relationship-label" type="text" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                        </div>
+                        <div id="relationship-properties-list" class="space-y-2">
+                            <!-- 动态生成的属性 -->
+                        </div>
+                        <button id="add-relationship-property-btn" class="w-full bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-plus mr-2"></i>
+                            添加属性
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 批量操作 -->
+            <div class="p-4">
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fa fa-cogs mr-2"></i> 批量操作
+                    </div>
+                    <div class="space-y-3 mt-2">
+                        <button id="batch-delete-btn" class="w-full bg-red-600 hover:bg-red-700 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-trash mr-2"></i>
+                            批量删除
+                        </button>
+                        <button id="batch-update-btn" class="w-full bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-refresh mr-2"></i>
+                            批量更新
+                        </button>
+                        <button id="toggle-debug-btn" class="w-full bg-gray-700 hover:bg-gray-600 text-white p-2 rounded flex items-center justify-center">
+                            <i class="fa fa-bug mr-2"></i>
+                            调试面板
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 模态框 -->
+    <!-- 连接 Neo4j 模态框 -->
+    <div id="connect-neo4j-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-white">连接 Neo4j 数据库</h2>
+                <button id="close-connect-modal" class="text-gray-400 hover:text-white">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">主机</label>
+                    <input id="neo4j-host" type="text" value="localhost" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">端口</label>
+                    <input id="neo4j-port" type="text" value="7687" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">用户名</label>
+                    <input id="neo4j-username" type="text" value="neo4j" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">密码</label>
+                    <input id="neo4j-password" type="password" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">数据库</label>
+                    <input id="neo4j-database" type="text" value="neo4j" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div class="pt-2">
+                    <button id="save-connection-btn" class="w-full bg-accent hover:bg-accent/90 text-white p-3 rounded flex items-center justify-center">
+                        <i class="fa fa-plug mr-2"></i>
+                        连接
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加节点类型模态框 -->
+    <div id="add-node-type-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-white">添加节点类型</h2>
+                <button class="text-gray-400 hover:text-white close-modal">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">节点类型名称</label>
+                    <input id="node-type-name" type="text" placeholder="例如: Person, Organization" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div class="pt-2">
+                    <button id="save-node-type-btn" class="w-full bg-accent hover:bg-accent/90 text-white p-3 rounded flex items-center justify-center">
+                        <i class="fa fa-save mr-2"></i>
+                        保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加关系类型模态框 -->
+    <div id="add-relationship-type-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-white">添加关系类型</h2>
+                <button class="text-gray-400 hover:text-white close-modal">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">关系类型名称</label>
+                    <input id="relationship-type-name" type="text" placeholder="例如: KNOWS, WORKS_FOR" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div class="pt-2">
+                    <button id="save-relationship-type-btn" class="w-full bg-accent hover:bg-accent/90 text-white p-3 rounded flex items-center justify-center">
+                        <i class="fa fa-save mr-2"></i>
+                        保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加属性模态框 -->
+    <div id="add-property-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-white">添加属性</h2>
+                <button class="text-gray-400 hover:text-white close-modal">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">属性键</label>
+                    <input id="property-key" type="text" placeholder="例如: name, age" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">属性值</label>
+                    <input id="property-value" type="text" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">数据类型</label>
+                    <select id="property-type" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-accent">
+                        <option value="string">字符串</option>
+                        <option value="number">数字</option>
+                        <option value="boolean">布尔值</option>
+                        <option value="array">数组</option>
+                        <option value="object">对象</option>
+                    </select>
+                </div>
+                <div class="pt-2">
+                    <button id="save-property-btn" class="w-full bg-accent hover:bg-accent/90 text-white p-3 rounded flex items-center justify-center">
+                        <i class="fa fa-save mr-2"></i>
+                        保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知组件 -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-3 rounded-lg shadow-lg z-50 transform translate-y-10 opacity-0 transition-all duration-300 hidden">
+        <div class="flex items-center">
+            <i id="toast-icon" class="fa fa-info-circle mr-3 text-blue-400"></i>
+            <span id="toast-message"></span>
+        </div>
+    </div>
+
+    <!-- 调试面板 -->
+    <div id="debug-panel" class="hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-700 p-4 z-40 max-h-64 overflow-y-auto">
+        <div class="flex justify-between items-center mb-2">
+            <h3 class="font-medium text-white">调试信息</h3>
+            <button id="clear-debug-btn" class="text-gray-400 hover:text-white text-sm">
+                清除
+            </button>
+        </div>
+        <pre id="debug-output" class="text-sm text-gray-300 font-mono"></pre>
+    </div>
+
+    <!-- JavaScript 模块引入 -->
+    <script src="js/utils.js"></script>
+    <script src="js/cytoscape.js"></script>
+    <script src="js/contextMenu.js"></script>
+    <script src="js/modeManager.js"></script>
+    <script src="js/neo4jConnection.js"></script>
+    <script src="js/init.js"></script>
+</body>
+</html>
