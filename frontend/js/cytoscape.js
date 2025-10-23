@@ -135,10 +135,6 @@ window.initializeDualViews = function() {
             };
         }
         
-        // 设置window.cy作为主要实例引用，防止容器访问错误
-        window.cy = window.cyNetwork;
-        console.log('Neo4j Editor: Set window.cy reference to cyNetwork instance');
-        
         console.log('Neo4j Editor: Dual views initialized successfully');
         return true;
     } catch (error) {
@@ -193,10 +189,6 @@ window.createFallbackCytoscapeInstances = function() {
             });
             console.log('Neo4j Editor: Created fallback window.cyNetwork instance');
         }
-        
-        // 设置window.cy作为主要实例引用
-        window.cy = window.cyNetwork;
-        console.log('Neo4j Editor: Set fallback window.cy reference to cyNetwork instance');
         
         console.log('Neo4j Editor: Fallback initialization completed');
         window.fallbackInitializationInProgress = false;

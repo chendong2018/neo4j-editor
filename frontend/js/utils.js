@@ -71,7 +71,14 @@ window.utils = {
     generateId: window.generateId || function(prefix) { return prefix + '_' + Date.now(); }
 };
 
-// 移除ES模块导出语句以支持浏览器直接使用
+// 添加ES模块导出语句，使其可以作为模块导入
+export const showToast = rawShowToast;
+export const debugLog = rawDebugLog;
+export const handleError = rawHandleError;
+export const generateId = window.generateId || function(prefix) { return prefix + '_' + Date.now(); };
+
+// 默认导出整个utils对象
+export default window.utils;
 
 console.log('5. utils.js loaded completely');
 console.log('5.1 window.utils exists:', !!window.utils);

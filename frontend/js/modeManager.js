@@ -122,27 +122,9 @@ function setCursorForAllContainers(cursorType) {
     });
     
     // 也设置Cytoscape实例的容器光标
-    if (window.cy && typeof window.cy.container === 'function') {
-        try {
-            window.cy.container().style.cursor = cursorType;
-        } catch (e) {
-            console.warn('Neo4j Editor: Failed to set cursor for window.cy:', e);
-        }
-    }
-    if (window.cyTree && typeof window.cyTree.container === 'function') {
-        try {
-            window.cyTree.container().style.cursor = cursorType;
-        } catch (e) {
-            console.warn('Neo4j Editor: Failed to set cursor for window.cyTree:', e);
-        }
-    }
-    if (window.cyNetwork && typeof window.cyNetwork.container === 'function') {
-        try {
-            window.cyNetwork.container().style.cursor = cursorType;
-        } catch (e) {
-            console.warn('Neo4j Editor: Failed to set cursor for window.cyNetwork:', e);
-        }
-    }
+    if (window.cy) window.cy.container().style.cursor = cursorType;
+    if (window.cyTree) window.cyTree.container().style.cursor = cursorType;
+    if (window.cyNetwork) window.cyNetwork.container().style.cursor = cursorType;
 }
 
 /**
