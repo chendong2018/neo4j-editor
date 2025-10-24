@@ -14,8 +14,6 @@ window.selectedRelationshipType = null;
  * @param {string} mode - 模式名称 ('select', 'node', 'relationship')
  */
 window.setMode = function(mode) {
-    console.log('Neo4j Editor: Setting mode to:', mode);
-    
     // 更新模式
     window.currentMode = mode;
     window.lastModeChange = { mode: mode, time: new Date().toISOString() };
@@ -41,19 +39,16 @@ window.setMode = function(mode) {
         setDefaultCursor();
         window.sourceNode = null;
         reinstallAllTapListeners();
-        // 替换showToast为console.log
-        console.log('选择模式已激活');
+        window.showToast && window.showToast('选择模式已激活');
     } else if (mode === 'node') {
         setCrosshairCursor();
         reinstallAllTapListeners();
-        // 替换showToast为console.log
-        console.log('节点创建模式已激活！点击画布任意位置创建节点');
+        window.showToast && window.showToast('节点创建模式已激活！点击画布任意位置创建节点');
     } else if (mode === 'relationship') {
         setPointerCursor();
         window.sourceNode = null;
         reinstallAllTapListeners();
-        // 替换showToast为console.log
-        console.log('关系创建模式已激活 - 点击节点创建关系');
+        window.showToast && window.showToast('关系创建模式已激活 - 点击节点创建关系');
     }
 }
 
@@ -131,8 +126,6 @@ function setCursorForAllContainers(cursorType) {
  * 重新安装所有点击监听器
  */
 window.reinstallAllTapListeners = function() {
-    console.log('Neo4j Editor: Reinstalling all tap listeners');
-    
     // 为Tree视图重新安装监听器
     reinstallListener(window.cyTree, 'Tree');
     
@@ -152,7 +145,6 @@ window.reinstallAllTapListeners = function() {
  */
 function reinstallListener(instance, viewName) {
     if (!instance) {
-        console.warn(`Neo4j Editor: ${viewName} view instance not available for listener reinstallation`);
         return;
     }
     
@@ -191,10 +183,8 @@ function reinstallListener(instance, viewName) {
             });
         }
         
-        console.log(`Neo4j Editor: Tap listener reinstalled for ${viewName} view in ${window.currentMode} mode`);
-        
     } catch (err) {
-        console.error(`Neo4j Editor: Error reinstalling tap listener for ${viewName} view:`, err);
+        window.handleError && window.handleError(err, `Error reinstalling tap listener for ${viewName} view`);
     }
 }
 

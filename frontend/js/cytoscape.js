@@ -93,7 +93,7 @@ window.initializeDualViews = function() {
                     padding: 30
                 }
             });
-        }
+          }
         
         // 创建Network视图实例
         if (!window.cyNetwork) {
@@ -120,7 +120,7 @@ window.initializeDualViews = function() {
                     minTemp: 1.0
                 }
             });
-        }
+          }
         
         // 创建共享数据存储
         if (!window.sharedGraphData) {
@@ -131,7 +131,7 @@ window.initializeDualViews = function() {
             };
         }
         
-        // 初始化右键菜单和键盘事件
+        // 初始化右键菜单、键盘事件和元素事件监听
         if (typeof window.initializeContextMenu === 'function') {
             window.initializeContextMenu();
         }
@@ -141,6 +141,9 @@ window.initializeDualViews = function() {
         if (typeof window.setupElementContextMenu === 'function') {
             window.setupElementContextMenu();
         }
+        
+        // 初始化事件监听
+        initializeEventListeners(window.cyTree, window.cyNetwork);
         
         return true;
     } catch (error) {
@@ -177,7 +180,7 @@ window.createFallbackCytoscapeInstances = function() {
                 elements: { nodes: [], edges: [] },
                 layout: { name: 'cose' }
             });
-        }
+          }
         
         // 创建network实例
         if (!window.cyNetwork) {
@@ -187,14 +190,14 @@ window.createFallbackCytoscapeInstances = function() {
                 elements: { nodes: [], edges: [] },
                 layout: { name: 'cose' }
             });
-        }
+          }
         
         // 确保共享数据存在
         if (!window.sharedGraphData) {
             window.sharedGraphData = { nodes: [], edges: [], selectedElement: null };
         }
         
-        // 初始化右键菜单和键盘事件
+        // 初始化右键菜单、键盘事件和元素事件监听
         if (typeof window.initializeContextMenu === 'function') {
             window.initializeContextMenu();
         }
@@ -204,6 +207,9 @@ window.createFallbackCytoscapeInstances = function() {
         if (typeof window.setupElementContextMenu === 'function') {
             window.setupElementContextMenu();
         }
+        
+        // 初始化事件监听
+        initializeEventListeners(window.cyTree, window.cyNetwork);
         
         return true;
     } catch (error) {
@@ -315,6 +321,105 @@ window.ensureSharedGraphData = function() {
 };
 
 /**
+ * 初始化事件监听
+ */
+function initializeEventListeners(cyTree, cyNetwork) {
+    // 节点选中事件同步
+    if (cyTree) {
+        cyTree.on('select', 'node', function(event) {
+            const element = event.target;
+            synchronizeSelection(element, cyTree);
+            // 显示节点属性面板
+            if (typeof window.selectNode === 'function') {
+                window.selectNode(element);
+            }
+        });
+        
+        cyTree.on('unselect', 'node', function() {
+            if (window.cyNetwork) {
+                window.cyNetwork.nodes().unselect();
+            }
+        });
+        
+        // 边选中事件
+        cyTree.on('select', 'edge', function(event) {
+            const element = event.target;
+            synchronizeSelection(element, cyTree);
+            // 显示边属性面板
+            if (typeof window.selectEdge === 'function') {
+                window.selectEdge(element);
+            }
+        });
+        
+        cyTree.on('unselect', 'edge', function() {
+            if (window.cyNetwork) {
+                window.cyNetwork.edges().unselect();
+            }
+        });
+    }
+    
+    if (cyNetwork) {
+        cyNetwork.on('select', 'node', function(event) {
+            const element = event.target;
+            synchronizeSelection(element, cyNetwork);
+            // 显示节点属性面板
+            if (typeof window.selectNode === 'function') {
+                window.selectNode(element);
+            }
+        });
+        
+        cyNetwork.on('unselect', 'node', function() {
+            if (window.cyTree) {
+                window.cyTree.nodes().unselect();
+            }
+        });
+        
+        // 边选中事件
+        cyNetwork.on('select', 'edge', function(event) {
+            const element = event.target;
+            synchronizeSelection(element, cyNetwork);
+            // 显示边属性面板
+            if (typeof window.selectEdge === 'function') {
+                window.selectEdge(element);
+            }
+        });
+        
+        cyNetwork.on('unselect', 'edge', function() {
+            if (window.cyTree) {
+                window.cyTree.edges().unselect();
+            }
+        });
+    }
+}
+
+/**
+ * 同步选中状态
+ */
+function synchronizeSelection(element, sourceCy) {
+    const targetCy = sourceCy === window.cyTree ? window.cyNetwork : window.cyTree;
+    
+    if (targetCy) {
+        // 根据元素类型取消对应的选中
+        if (element.isNode()) {
+            targetCy.nodes().unselect();
+        } else if (element.isEdge()) {
+            targetCy.edges().unselect();
+        }
+        
+        // 选中对应元素
+        const correspondingElement = targetCy.getElementById(element.id());
+        if (correspondingElement) {
+            correspondingElement.select();
+        }
+    }
+    
+    // 更新共享数据中的选中元素
+    if (window.sharedGraphData) {
+        window.sharedGraphData.selectedElement = element;
+    }
+}
+
+/**
  * 在两个视图中添加边
  * @param {Object} edge - 边对象
  */
@@ -385,10 +490,10 @@ window.clearAllViews = function() {
 }
 
 /**
- * 导出图表数据
+ * 获取图数据（用于内部使用）
  * @returns {Object} 包含nodes和edges的对象
  */
-window.exportGraphData = function() {
+function getGraphData() {
     if (window.sharedGraphData) {
         return {
             nodes: window.sharedGraphData.nodes,
@@ -414,5 +519,5 @@ window.cytoscapeModule = {
     addEdgeToViews: window.addEdgeToViews,
     removeElementFromViews: window.removeElementFromViews,
     clearAllViews: window.clearAllViews,
-    exportGraphData: window.exportGraphData
+    getGraphData: getGraphData
 };

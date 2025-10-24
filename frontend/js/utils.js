@@ -33,6 +33,10 @@
             // 移除旧的菜单元素（如果存在）
             const existingMenu = document.getElementById('context-menu');
             if (existingMenu) {
+                // 移除旧的事件监听器
+                if (existingMenu._clickHandler) {
+                    document.removeEventListener('click', existingMenu._clickHandler);
+                }
                 existingMenu.remove();
             }
             
@@ -79,125 +83,44 @@
             document.head.appendChild(style);
             document.body.appendChild(menu);
             
-            // 移除可能存在的旧事件监听器，避免重复绑定
-                const cleanUpOldListeners = function() {
-                    const menu = document.getElementById('context-menu');
-                    if (menu && menu._clickHandler) {
-                        document.removeEventListener('click', menu._clickHandler);
-                    }
-                };
-                
-                cleanUpOldListeners();
-                
-                // 全局点击事件隐藏菜单
-                const menuEl = document.getElementById('context-menu');
-                menuEl._clickHandler = function(event) {
-                    if (event.target && window.getComputedStyle(menuEl).display !== 'none' && !menuEl.contains(event.target)) {
-                        menuEl.style.display = 'none';
-                    }
-                };
-                
-                document.addEventListener('click', menuEl._clickHandler);
-                
-                // 设置删除选项点击处理
-                const deleteOption = document.getElementById('delete-option');
-                if (deleteOption) {
-                    deleteOption.addEventListener('click', function() {
-                        const menu = document.getElementById('context-menu');
-                        const elementId = menu.dataset.elementId;
-                        
-                        if (elementId) {
-                            // 检查removeElementFromViews是否存在
-                            if (window.removeElementFromViews) {
-                                window.removeElementFromViews(elementId);
-                            } else {
-                                // 尝试直接从Cytoscape实例中删除
-                                if (window.cyTree) {
-                                    const node = window.cyTree.getElementById(elementId);
-                                    if (node && node.length > 0) {
-                                        node.remove();
-                                    }
-                                }
-                                if (window.cyNetwork) {
-                                    const node = window.cyNetwork.getElementById(elementId);
-                                    if (node && node.length > 0) {
-                                        node.remove();
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // 隐藏菜单
-                        if (menu) {
-                            menu.style.display = 'none';
-                        }
-                    });
+            // 全局点击事件隐藏菜单
+            menu._clickHandler = function(event) {
+                if (window.getComputedStyle(menu).display !== 'none' && !menu.contains(event.target)) {
+                    menu.style.display = 'none';
                 }
+            };
+            
+            document.addEventListener('click', menu._clickHandler);
+            
+            // 设置删除选项点击处理
+            const deleteOption = document.getElementById('delete-option');
+            if (deleteOption) {
+                deleteOption.addEventListener('click', function() {
+                    const elementId = menu.dataset.elementId;
+                    
+                    if (elementId) {
+                        // 优先使用统一的删除函数
+                        if (window.removeElementFromViews) {
+                            window.removeElementFromViews(elementId);
+                        } else {
+                            // 备用删除方式
+                            [window.cyTree, window.cyNetwork].forEach(cy => {
+                                if (cy) {
+                                    const node = cy.getElementById(elementId);
+                                    if (node && node.length > 0) {
+                                        node.remove();
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    
+                    // 隐藏菜单
+                    menu.style.display = 'none';
+                });
+            }
         };
     }
-    
-    // 添加一个全局测试按钮函数，用于调试右键菜单
-    // if (typeof window.addContextMenuTestButton !== 'function') {
-    //     window.addContextMenuTestButton = function() {
-    //         console.log('utils.js: 添加右键菜单测试按钮...');
-            
-    //         // 移除已存在的测试按钮
-    //         const existingButton = document.getElementById('test-context-menu-btn');
-    //         if (existingButton) {
-    //             existingButton.remove();
-    //         }
-            
-    //         // 创建测试按钮
-    //         const button = document.createElement('button');
-    //         button.id = 'test-context-menu-btn';
-    //         button.textContent = '测试右键菜单';
-    //         button.style.cssText = `
-    //             position: fixed;
-    //             top: 10px;
-    //             right: 10px;
-    //             z-index: 10000;
-    //             background-color: #e74c3c;
-    //             color: white;
-    //             border: none;
-    //             padding: 10px 20px;
-    //             border-radius: 4px;
-    //             cursor: pointer;
-    //             font-size: 14px;
-    //             font-weight: bold;
-    //         `;
-            
-    //         button.addEventListener('click', function() {
-    //             console.log('utils.js: 测试按钮被点击，尝试显示右键菜单');
-    //             const menu = document.getElementById('context-menu');
-                
-    //             if (!menu) {
-    //                 console.log('utils.js: 右键菜单不存在，重新初始化');
-    //                 if (typeof window.initializeContextMenu === 'function') {
-    //                     window.initializeContextMenu();
-    //                 }
-    //             }
-                
-    //             // 显示测试菜单
-    //             const testMenu = document.getElementById('context-menu');
-    //             if (testMenu) {
-    //                 testMenu.dataset.elementId = 'test-element';
-    //                 testMenu.style.display = 'block';
-    //                 testMenu.style.left = '150px';
-    //                 testMenu.style.top = '150px';
-    //                 testMenu.style.opacity = '1';
-    //                 testMenu.style.pointerEvents = 'auto';
-    //                 testMenu.style.backgroundColor = '#2ed573'; // 测试按钮点击时变为绿色
-                    
-    //                 // 滚动到菜单位置
-    //                 window.scrollTo({
-    //                     left: parseInt(testMenu.style.left),
-    //                     top: parseInt(testMenu.style.top),
-    //                     behavior: 'smooth'
-    //                 });
-                    
-    //                 console.log('utils.js: 测试菜单已显示');
-    //                 console.log(`utils.js: 测试菜单详细状态 - 显示: ${testMenu.style.display}, 位置: ${testMenu.style.left}, ${testMenu.style.top}, z-index: ${testMenu.style.zIndex}`);
-    //                 console.log(`utils.js: 测试菜单项数量: ${testMenu.querySelectorAll('.context-menu-item').length}`);
                     
     //                 // 添加闪烁效果以增强可见性
     //                 let blinkCount = 0;
@@ -349,7 +272,7 @@
     };
     
     // 导出模块（如果支持CommonJS）
-    if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-        module.exports = window.utils;
-    }
+    // 确保utils对象在全局作用域中可用
+// 不使用模块系统导出，因为我们在浏览器中直接使用全局对象
+window.utils = window.utils || {};
 })();

@@ -371,6 +371,6 @@ window.neo4jConnection = {
 };
 
 // 暴露为ES模块（如果支持）
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-    module.exports = window.neo4jConnection;
-}
+// 确保neo4jConnection对象在全局作用域中可用
+// 不使用模块系统导出，因为我们在浏览器中直接使用全局对象
+window.neo4jConnection = window.neo4jConnection || {};
