@@ -1149,14 +1149,19 @@
                 return;
             }
             
-            // Add to node type styles
-            nodeTypeStyles[name] = {
+            // 确保使用全局nodeTypeStyles变量
+            window.nodeTypeStyles = window.nodeTypeStyles || {};
+            window.nodeTypeStyles[name] = {
                 'background-color': color,
                 'icon': icon
             };
             
             // 保存到localStorage
-            saveNodeTypeStyles();
+            if (typeof window.saveNodeTypeStyles === 'function') {
+                window.saveNodeTypeStyles();
+            } else {
+                saveNodeTypeStyles();
+            }
             
             // Add to node type buttons
             const nodeTypesContainer = document.querySelector('.panel-content');
@@ -1180,8 +1185,8 @@
             btn.addEventListener('contextmenu', function(e) {
                 e.preventDefault();
                 showContextMenu(e.clientX, e.clientY, [
-                    { text: 'Edit', action: () => showEditNodeTypeModal(name) },
-                    { text: 'Delete', action: () => deleteNodeType(name) }
+                    { text: 'Edit', action: () => window.showEditNodeTypeModal && window.showEditNodeTypeModal(name) },
+                    { text: 'Delete', action: () => window.deleteNodeType && window.deleteNodeType(name) }
                 ]);
             });
             
@@ -1260,35 +1265,84 @@
             showToast(`Relationship type ${name} added`);
         }
         
-        // 从localStorage加载节点类型样式，如果没有则使用默认值
-        function loadNodeTypeStyles() {
-            const saved = localStorage.getItem('nodeTypeStyles');
-            if (saved) {
-                return JSON.parse(saved);
-            }
-            return {
-                'Person': {
-                    'background-color': '#2196F3',
-                    'icon': 'fa-user'
-                },
-                'Movie': {
-                    'background-color': '#4CAF50',
-                    'icon': 'fa-film'
-                },
-                'Book': {
-                    'background-color': '#FF9800',
-                    'icon': 'fa-book'
-                },
-                'Company': {
-                    'background-color': '#9C27B0',
-                    'icon': 'fa-building'
+        // 从localStorage加载节点类型样式，如果没有则使用默认值 - 添加到全局作用域
+        window.loadNodeTypeStyles = function() {
+            console.log('loadNodeTypeStyles called - START');
+            try {
+                const saved = localStorage.getItem('nodeTypeStyles');
+                console.log('Loaded raw data from localStorage:', saved);
+                
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        console.log('Parsed nodeTypeStyles successfully:', parsed);
+                        // 验证解析后的数据是否为对象
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            return parsed;
+                        } else {
+                            console.error('Parsed data is not a valid object');
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing saved nodeTypeStyles:', parseError);
+                        console.log('Using default styles due to parse error');
+                    }
                 }
-            };
+                
+                // 默认样式
+                const defaultStyles = {
+                    'Person': {
+                        'background-color': '#2196F3',
+                        'icon': 'fa-user'
+                    },
+                    'Movie': {
+                        'background-color': '#4CAF50',
+                        'icon': 'fa-film'
+                    },
+                    'Book': {
+                        'background-color': '#FF9800',
+                        'icon': 'fa-book'
+                    },
+                    'Company': {
+                        'background-color': '#9C27B0',
+                        'icon': 'fa-building'
+                    }
+                };
+                console.log('Using default nodeTypeStyles:', defaultStyles);
+                return defaultStyles;
+            } catch (error) {
+                console.error('Error in loadNodeTypeStyles:', error);
+                return {};
+            } finally {
+                console.log('loadNodeTypeStyles called - END');
+            }
         }
         
-        // 保存节点类型样式到localStorage
-        function saveNodeTypeStyles() {
-            localStorage.setItem('nodeTypeStyles', JSON.stringify(nodeTypeStyles));
+        // 保存节点类型样式到localStorage - 添加到全局作用域
+        window.saveNodeTypeStyles = function() {
+            console.log('saveNodeTypeStyles called - START');
+            try {
+                window.nodeTypeStyles = window.nodeTypeStyles || {};
+                console.log('Saving nodeTypeStyles:', window.nodeTypeStyles);
+                
+                const jsonData = JSON.stringify(window.nodeTypeStyles);
+                console.log('JSON data to save:', jsonData);
+                localStorage.setItem('nodeTypeStyles', jsonData);
+                
+                // 验证保存是否成功
+                const savedData = localStorage.getItem('nodeTypeStyles');
+                if (savedData) {
+                    console.log('Node type styles saved to localStorage and verified');
+                    return true;
+                } else {
+                    console.error('Failed to verify saved nodeTypeStyles');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error saving nodeTypeStyles:', error);
+                return false;
+            } finally {
+                console.log('saveNodeTypeStyles called - END');
+            }
         }
         
         // 从localStorage加载关系类型样式，如果没有则使用默认值
@@ -1334,11 +1388,20 @@
             localStorage.setItem('relationshipTypeStyles', JSON.stringify(relationshipTypeStyles));
         }
         
-        // Node type styles
-        let nodeTypeStyles = loadNodeTypeStyles();
+        // 确保全局使用的节点类型和关系类型变量
+        console.log('Initializing nodeTypeStyles...');
+        if (!window.nodeTypeStyles) {
+            window.nodeTypeStyles = window.loadNodeTypeStyles ? window.loadNodeTypeStyles() : {};
+        }
+        console.log('Current window.nodeTypeStyles:', window.nodeTypeStyles);
         
-        // Relationship type styles
-        let relationshipTypeStyles = loadRelationshipTypeStyles();
+        console.log('Initializing relationshipTypeStyles...');
+        window.relationshipTypeStyles = window.relationshipTypeStyles || loadRelationshipTypeStyles();
+        console.log('Current window.relationshipTypeStyles:', window.relationshipTypeStyles);
+        
+        // 为了向后兼容，使用局部变量引用全局变量
+        const nodeTypeStyles = window.nodeTypeStyles;
+        const relationshipTypeStyles = window.relationshipTypeStyles;
         
         // 显示提示消息的函数
         function showToast(message) {
@@ -1960,7 +2023,8 @@
                     
                     // 重新创建节点类型按钮
                     let firstNodeType = true;
-                    for (const [type, style] of Object.entries(nodeTypeStyles)) {
+                    window.nodeTypeStyles = window.nodeTypeStyles || {};
+                    for (const [type, style] of Object.entries(window.nodeTypeStyles)) {
                         const btn = document.createElement('div');
                         btn.className = `node-type-btn ${firstNodeType ? 'active' : ''}`;
                         btn.dataset.type = type;
@@ -1980,10 +2044,14 @@
                         // 添加右键菜单
                         btn.addEventListener('contextmenu', function(e) {
                             e.preventDefault();
-                            showContextMenu(e.clientX, e.clientY, [
-                                { text: 'Edit', action: () => showEditNodeTypeModal(type) },
-                                { text: 'Delete', action: () => deleteNodeType(type) }
-                            ]);
+                            e.stopPropagation(); // 阻止事件冒泡，避免影响画布右键
+                            console.log('Node type button contextmenu event');
+                            if (window.showContextMenu) {
+                                window.showContextMenu(e.clientX, e.clientY, [
+                                    { text: 'Edit', action: () => window.showEditNodeTypeModal && window.showEditNodeTypeModal(type) },
+                                    { text: 'Delete', action: () => window.deleteNodeType && window.deleteNodeType(type) }
+                                ]);
+                            }
                         });
                         
                         nodeTypesContainer.appendChild(btn);
@@ -2706,7 +2774,8 @@
         }
         
         // 显示编辑节点类型模态框
-        function showEditNodeTypeModal(type) {
+        // 编辑节点类型模态框 - 添加到全局作用域
+        window.showEditNodeTypeModal = function(type) {
             const modal = document.getElementById('add-node-type-modal');
             const title = modal.querySelector('h3');
             const confirmBtn = document.getElementById('confirm-add-node-type-btn');
@@ -3252,60 +3321,98 @@
             showToast(`Property ${key} added`);
         }
         
-        // Add a new node type
+        // Add a new node type - 确保保存正确并更新UI
         function addNodeType() {
+            console.log('addNodeType function called - START');
             const name = document.getElementById('new-node-type-name').value;
             const icon = document.getElementById('new-node-type-icon').value;
             const color = document.getElementById('new-node-type-color').value;
             
+            console.log('Adding node type:', {name, icon, color});
+            
             if (!name) {
+                console.log('Name is required');
                 showToast('Name is required');
                 return;
             }
             
+            // 确保全局变量存在
+            window.nodeTypeStyles = window.nodeTypeStyles || {};
+            
             // 检查是否已存在
-            if (nodeTypeStyles[name]) {
+            if (window.nodeTypeStyles[name]) {
+                console.log(`Node type ${name} already exists`);
                 showToast(`Node type ${name} already exists`);
                 return;
             }
             
-            // Add to node type styles
-            nodeTypeStyles[name] = {
+            // 添加到全局nodeTypeStyles变量
+            window.nodeTypeStyles[name] = {
                 'background-color': color,
                 'icon': icon
             };
+            console.log('Added to window.nodeTypeStyles:', window.nodeTypeStyles);
             
-            // 保存到localStorage
-            saveNodeTypeStyles();
+            // 同步到局部变量
+            nodeTypeStyles[name] = window.nodeTypeStyles[name];
             
-            // Add to node type buttons
-            const nodeTypesContainer = document.querySelector('.panel-content');
-            const btn = document.createElement('div');
-            btn.className = 'node-type-btn';
-            btn.dataset.type = name;
-            btn.innerHTML = `
-                <i class="fa ${icon} node-type-icon"></i>
-                <span>${name}</span>
-            `;
+            // 保存到localStorage - 确保使用全局函数
+            if (typeof window.saveNodeTypeStyles === 'function') {
+                console.log('Calling window.saveNodeTypeStyles()');
+                const saveResult = window.saveNodeTypeStyles();
+                console.log('Save result:', saveResult);
+                if (!saveResult) {
+                    console.error('Failed to save node type, trying again...');
+                    // 尝试再次保存
+                    setTimeout(() => {
+                        window.saveNodeTypeStyles();
+                    }, 100);
+                }
+            } else {
+                console.error('window.saveNodeTypeStyles function not available');
+            }
             
-            // Add event listeners
-            btn.addEventListener('click', function() {
-                const type = this.dataset.type;
-                selectedNodeType = type;
-                document.querySelectorAll('.node-type-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-            });
-            
-            // 添加右键菜单支持编辑和删除
-            btn.addEventListener('contextmenu', function(e) {
-                e.preventDefault();
-                showContextMenu(e.clientX, e.clientY, [
-                    { text: 'Edit', action: () => showEditNodeTypeModal(name) },
-                    { text: 'Delete', action: () => deleteNodeType(name) }
-                ]);
-            });
-            
-            nodeTypesContainer.appendChild(btn);
+            // 重新初始化类型按钮以更新UI（优先使用这种方式，确保一致性）
+            if (typeof initializeTypeButtons === 'function') {
+                console.log('Calling initializeTypeButtons to update UI');
+                initializeTypeButtons();
+            } else {
+                console.log('Adding button directly since initializeTypeButtons is not available');
+                // Add to node type buttons
+                const nodeTypesContainer = document.querySelector('.panel-content');
+                if (nodeTypesContainer) {
+                    const btn = document.createElement('div');
+                    btn.className = 'node-type-btn';
+                    btn.dataset.type = name;
+                    btn.innerHTML = `
+                        <i class="fa ${icon} node-type-icon"></i>
+                        <span>${name}</span>
+                    `;
+                    
+                    // Add event listeners
+                    btn.addEventListener('click', function() {
+                        const type = this.dataset.type;
+                        selectedNodeType = type;
+                        document.querySelectorAll('.node-type-btn').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                    });
+                    
+                    // 添加右键菜单支持编辑和删除
+                    btn.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation(); // 阻止事件冒泡，避免影响画布右键
+                        if (window.showContextMenu) {
+                            console.log('Showing context menu for new node type button');
+                            window.showContextMenu(e.clientX, e.clientY, [
+                                { text: 'Edit', action: () => window.showEditNodeTypeModal && window.showEditNodeTypeModal(name) },
+                                { text: 'Delete', action: () => window.deleteNodeType && window.deleteNodeType(name) }
+                            ]);
+                        }
+                    });
+                    
+                    nodeTypesContainer.appendChild(btn);
+                }
+            }
             
             // Close modal
             document.getElementById('add-node-type-modal').classList.add('hidden');
@@ -3315,41 +3422,89 @@
             
             // Show toast
             showToast(`Node type ${name} added`);
+            console.log('Node type addition completed');
         }
         
-        // 删除节点类型
-        function deleteNodeType(name) {
-            if (Object.keys(nodeTypeStyles).length <= 1) {
+        // 删除节点类型 - 添加到全局作用域
+        window.deleteNodeType = function(name) {
+            console.log('deleteNodeType called for:', name, '- START');
+            console.log('Current nodeTypeStyles before deletion:', window.nodeTypeStyles);
+            
+            // 确保全局变量存在
+            if (!window.nodeTypeStyles || typeof window.nodeTypeStyles !== 'object') {
+                console.error('window.nodeTypeStyles is not valid');
+                window.nodeTypeStyles = {};
+                return;
+            }
+            
+            if (Object.keys(window.nodeTypeStyles || {}).length <= 1) {
+                console.log('Cannot delete the last node type');
                 showToast('Cannot delete the last node type');
                 return;
             }
             
             // 确认删除
             if (!confirm(`Are you sure you want to delete node type "${name}"?`)) {
+                console.log('Deletion canceled by user');
                 return;
             }
             
-            // 从对象中删除
+            // 从全局对象中删除
+            delete window.nodeTypeStyles[name];
+            console.log('Node type removed from window.nodeTypeStyles');
+            
+            // 同步到局部变量
             delete nodeTypeStyles[name];
             
-            // 保存到localStorage
-            saveNodeTypeStyles();
+            // 保存到localStorage - 确保使用全局函数
+            if (typeof window.saveNodeTypeStyles === 'function') {
+                console.log('Calling window.saveNodeTypeStyles()');
+                const saveResult = window.saveNodeTypeStyles();
+                console.log('Save result:', saveResult);
+                if (!saveResult) {
+                    console.error('Failed to save after deletion, trying again...');
+                    // 尝试再次保存
+                    setTimeout(() => {
+                        window.saveNodeTypeStyles();
+                    }, 100);
+                }
+            } else {
+                console.error('window.saveNodeTypeStyles function not available');
+            }
             
-            // 移除对应的按钮
-            const btn = document.querySelector(`.node-type-btn[data-type="${name}"]`);
-            if (btn) {
-                btn.remove();
+            // 重新初始化类型按钮以更新UI
+            if (typeof initializeTypeButtons === 'function') {
+                console.log('Calling initializeTypeButtons to update UI');
+                initializeTypeButtons();
+            } else {
+                // 备选：移除对应的按钮
+                const btn = document.querySelector(`.node-type-btn[data-type="${name}"]`);
+                if (btn) {
+                    console.log('Removing button directly');
+                    btn.remove();
+                }
             }
             
             // 显示提示
             showToast(`Node type ${name} deleted`);
+            console.log('Delete node type operation completed');
         }
         
-        // 显示右键菜单
-        function showContextMenu(x, y, options) {
+        // 显示右键菜单 - 添加到全局作用域
+        window.showContextMenu = function(x, y, options) {
+            console.log('showContextMenu called at position:', x, y);
+            
+            // 阻止事件冒泡，避免影响画布右键事件
+            if (window.event) {
+                console.log('Stopping event propagation in showContextMenu');
+                window.event.stopPropagation();
+                window.event.preventDefault();
+            }
+            
             // 移除已存在的右键菜单
             const existingMenu = document.getElementById('context-menu');
             if (existingMenu) {
+                console.log('Removing existing context menu');
                 existingMenu.remove();
             }
             
@@ -3359,32 +3514,54 @@
             menu.className = 'fixed bg-white shadow-lg rounded border border-gray-300 z-50';
             menu.style.left = `${x}px`;
             menu.style.top = `${y}px`;
+            menu.style.padding = '4px 0';
+            menu.style.minWidth = '120px';
             
             // 添加菜单项
+            console.log('Adding menu options:', options.map(opt => opt.text));
             options.forEach(option => {
                 const item = document.createElement('div');
-                item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer';
+                item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm';
                 item.textContent = option.text;
-                item.addEventListener('click', () => {
-                    option.action();
+                item.addEventListener('click', (e) => {
+                    console.log('Menu item clicked:', option.text);
+                    e.stopPropagation(); // 阻止事件冒泡
+                    try {
+                        option.action();
+                    } catch (err) {
+                        console.error('Error executing context menu action:', err);
+                    }
                     menu.remove();
+                    document.removeEventListener('click', closeMenu);
                 });
                 menu.appendChild(item);
             });
             
             // 添加到文档
             document.body.appendChild(menu);
+            console.log('Context menu added to document');
             
-            // 点击其他地方关闭菜单
-            const closeMenu = () => {
-                menu.remove();
-                document.removeEventListener('click', closeMenu);
+            // 点击其他地方关闭菜单 - 只定义一次
+            const closeMenu = (e) => {
+                // 阻止事件冒泡，这很重要
+                e.stopPropagation();
+                if (!menu.contains(e.target)) {
+                    console.log('Closing context menu due to click outside');
+                    menu.remove();
+                    document.removeEventListener('click', closeMenu);
+                }
             };
             
             setTimeout(() => {
                 document.addEventListener('click', closeMenu);
+                console.log('Added close menu listener');
             }, 0);
-        }
+            
+            // 添加菜单自身的右键点击处理
+            menu.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
         
         // Add a new relationship type
         function addRelationshipType() {
@@ -3925,7 +4102,7 @@
                         const isNodeType = nodeTypesPanel.contains(this);
                         
                         if (isNodeType) {
-                            showEditNodeTypeModal(type);
+                            window.showEditNodeTypeModal && window.showEditNodeTypeModal(type);
                         } else {
                             showEditRelationshipTypeModal(type);
                         }
@@ -5055,7 +5232,7 @@
         function initializeDualViews() {
             console.log('Neo4j Editor: Initializing dual views - START');
             
-            try {
+            // 移除try块，简化函数结构
                 // 检查Cytoscape是否已加载
                 console.log('Neo4j Editor: Checking if Cytoscape is loaded:', typeof cytoscape !== 'undefined');
                 
@@ -5301,8 +5478,6 @@
                     setMode('select');
                 }
                 
-            } catch (error) {
-                console.error('Neo4j Editor: Failed to initialize dual views:', error);
             }
         }
         
@@ -6325,10 +6500,9 @@
 </script>
 
 <!-- JavaScript 模块引入 -->
-    <script src="js/utils.js"></script>
-    <script src="js/cytoscape.js"></script>
-    <script src="js/modeManager.js"></script>
-    <script src="js/neo4jConnection.js"></script>
-    <script src="js/init.js"></script>
+    <script src="./js/cytoscape.js"></script>
+    <script src="./js/modeManager.js"></script>
+    <script src="./js/neo4jConnection.js"></script>
+    <script src="./js/init.js"></script>
 </body>
 </html>

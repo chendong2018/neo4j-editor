@@ -64,11 +64,65 @@ window.debugLog = debugLog;
 window.sharedGraphData = { selectedElement: null };
 window.currentMode = 'select';
 
+// 确保全局变量存在
+console.log('Initializing global variables in init.js - START');
+console.log('Current window.nodeTypeStyles before init:', window.nodeTypeStyles);
+console.log('Current window.relationshipTypeStyles before init:', window.relationshipTypeStyles);
+
+// 优先使用全局loadNodeTypeStyles函数加载节点类型
+if (typeof window.loadNodeTypeStyles === 'function') {
+    console.log('Calling window.loadNodeTypeStyles() in init.js');
+    try {
+        const loadedStyles = window.loadNodeTypeStyles();
+        console.log('Loaded node type styles:', loadedStyles);
+        if (loadedStyles && typeof loadedStyles === 'object') {
+            window.nodeTypeStyles = loadedStyles;
+            console.log('Node type styles updated successfully in init.js:', window.nodeTypeStyles);
+            
+            // 常量不能重新赋值，我们直接使用window.nodeTypeStyles即可
+            console.log('Using window.nodeTypeStyles directly instead of updating local constant');
+        }
+    } catch (error) {
+        console.error('Error loading node type styles in init.js:', error);
+    }
+} else {
+    console.warn('window.loadNodeTypeStyles not available in init.js');
+    window.nodeTypeStyles = window.nodeTypeStyles || {};
+}
+
+// 初始化关系类型
+if (typeof window.relationshipTypeStyles === 'undefined') {
+    console.log('Initializing relationshipTypeStyles in init.js');
+    window.relationshipTypeStyles = {};
+}
+
+console.log('Global variables initialized in init.js - END');
+
+// 检查全局函数是否存在
+console.log('Init.js: Checking global functions...');
+if (typeof window.deleteNodeType !== 'function') {
+    console.warn('deleteNodeType function not found in window');
+} else {
+    console.log('deleteNodeType function exists in window');
+}
+
+if (typeof window.saveNodeTypeStyles !== 'function') {
+    console.warn('saveNodeTypeStyles function not found in window');
+} else {
+    console.log('saveNodeTypeStyles function exists in window');
+}
+
+if (typeof window.loadNodeTypeStyles !== 'function') {
+    console.warn('loadNodeTypeStyles function not found in window');
+} else {
+    console.log('loadNodeTypeStyles function exists in window');
+}
+
 /**
  * 初始化应用
  */
 window.initializeApp = async function() {
-    console.log('Neo4j Editor: Initializing application...');
+    console.log('Init.js: Initializing Neo4j Editor...');
     
     try {
         // 检查并初始化Cytoscape实例
@@ -82,6 +136,22 @@ window.initializeApp = async function() {
         
         // 设置调试面板
         setupDebugPanel();
+        
+        // 显式调用全局loadNodeTypeStyles如果可用
+        if (typeof window.loadNodeTypeStyles === 'function' && (!window.nodeTypeStyles || Object.keys(window.nodeTypeStyles).length === 0)) {
+            console.log('Init.js: Calling window.loadNodeTypeStyles() to load saved node types');
+            window.nodeTypeStyles = window.loadNodeTypeStyles();
+            console.log('Init.js: Loaded nodeTypeStyles:', window.nodeTypeStyles);
+        }
+        
+        // 确保initializeTypeButtons函数被调用
+        if (typeof window.initializeTypeButtons === 'function') {
+            console.log('Init.js: Calling window.initializeTypeButtons()');
+            window.initializeTypeButtons();
+        } else if (typeof initializeTypeButtons === 'function') {
+            console.log('Init.js: Calling local initializeTypeButtons()');
+            initializeTypeButtons();
+        }
         
         // 不使用弹窗，只记录日志
         console.log('Neo4j Editor 已成功初始化');
@@ -102,6 +172,108 @@ window.initializeApp = async function() {
         }
         // 不使用弹窗，只记录日志
         console.log('初始化失败，请刷新页面重试');
+    }
+}
+
+// 确保节点类型和关系类型变量可用
+function ensureTypeVariables() {
+    console.log('Init.js: ensureTypeVariables() called');
+    
+    if (!window.nodeTypeStyles) {
+        console.log('Init.js: nodeTypeStyles not found in window, initializing');
+        // 使用loadNodeTypeStyles函数加载默认节点类型，如果可用
+        if (typeof window.loadNodeTypeStyles === 'function') {
+            console.log('Init.js: window.loadNodeTypeStyles() available, loading node types');
+            window.nodeTypeStyles = window.loadNodeTypeStyles();
+            console.log('Init.js: Loaded nodeTypeStyles:', window.nodeTypeStyles);
+        } else {
+            console.log('Init.js: window.loadNodeTypeStyles() not available, using empty object');
+            window.nodeTypeStyles = {};
+        }
+    } else {
+        console.log('Init.js: nodeTypeStyles already exists in window:', window.nodeTypeStyles);
+    }
+    
+    if (!window.relationshipTypeStyles) {
+        console.log('Init.js: relationshipTypeStyles not found, initializing empty object');
+        window.relationshipTypeStyles = {};
+    } else {
+        console.log('Init.js: relationshipTypeStyles already exists:', window.relationshipTypeStyles);
+    }
+}
+
+// 确保cytoscape实例正确初始化
+function checkCytoscapeInstance() {
+    console.log('Init.js: Checking cytoscape instance...');
+    if (typeof window.cy === 'undefined') {
+        console.warn('Cytoscape instance not initialized');
+    } else {
+        console.log('Cytoscape instance exists');
+        // 调用更全面的右键监控设置函数
+        setupCanvasRightClickMonitoring();
+    }
+}
+
+// 监控画布右键事件 - 更全面的监控
+console.log('Setting up canvas right-click event monitoring in init.js');
+let canvasRetryCount = 0;
+const MAX_CANVAS_RETRIES = 10;
+
+function setupCanvasRightClickMonitoring() {
+    // 检查是否有多个canvas实例
+    const hasCyTree = typeof window.cyTree !== 'undefined' && window.cyTree;
+    const hasCyNetwork = typeof window.cyNetwork !== 'undefined' && window.cyNetwork;
+    
+    if (window.cy || hasCyTree || hasCyNetwork) {
+        console.log('Canvas object available, setting up event listeners');
+        
+        // 为每个可用的canvas实例设置监听器
+        const canvasInstances = [];
+        if (window.cy) canvasInstances.push({ name: 'main', instance: window.cy });
+        if (hasCyTree) canvasInstances.push({ name: 'tree', instance: window.cyTree });
+        if (hasCyNetwork) canvasInstances.push({ name: 'network', instance: window.cyNetwork });
+        
+        canvasInstances.forEach(({ name, instance }) => {
+            console.log(`Setting up event listeners for ${name} canvas`);
+            
+            // 移除可能存在的旧监听器，避免重复
+            instance.off('cxttap');
+            instance.off('cxttapend');
+            instance.off('contextmenu');
+            instance.off('tap');
+            
+            // 添加右键相关事件监听
+            instance.on('cxttap', function(e) {
+                console.log(`${name} canvas right-click (cxttap) detected`);
+            });
+            
+            instance.on('cxttapend', function(e) {
+                console.log(`${name} canvas right-click ended (cxttapend) detected`);
+            });
+            
+            // 同时监听原生右键菜单事件
+            instance.on('contextmenu', function(e) {
+                console.log(`${name} canvas native contextmenu event detected`);
+                // 注意：这里不阻止默认行为，让画布的右键菜单正常工作
+            });
+            
+            // 监听普通点击，确保画布交互正常
+            instance.on('tap', function(e) {
+                console.log(`${name} canvas tap event detected`);
+            });
+        });
+    } else {
+        canvasRetryCount++;
+        if (canvasRetryCount <= MAX_CANVAS_RETRIES) {
+            console.warn(`Canvas object not available yet (attempt ${canvasRetryCount}/${MAX_CANVAS_RETRIES}), will retry later`);
+            // 稍后重试，每次间隔增加一些时间
+            setTimeout(setupCanvasRightClickMonitoring, 500 * canvasRetryCount);
+        } else {
+            console.warn(`Maximum canvas initialization retries (${MAX_CANVAS_RETRIES}) reached, giving up`);
+            // 检查是否有canvas容器
+            const hasCanvasContainer = document.getElementById('cy-tree') || document.getElementById('cy-network');
+            console.log('Canvas containers check:', { hasTree: !!document.getElementById('cy-tree'), hasNetwork: !!document.getElementById('cy-network') });
+        }
     }
 }
 
@@ -443,17 +615,63 @@ function setupNodeTypeListeners() {
     }
     
     // 添加节点类型按钮 - 改进模态框显示逻辑
-    document.getElementById('add-node-type-btn')?.addEventListener('click', () => {
+console.log('Init.js: Setting up add-node-type-btn event listener...');
+document.getElementById('add-node-type-btn')?.addEventListener('click', () => {
+    console.log('Init.js: add-node-type-btn clicked');
+    const modal = document.getElementById('add-node-type-modal');
+    if (modal) {
+        console.log('Init.js: Opening add node type modal');
+        modal.classList.remove('hidden');
+        // 确保模态框在z-index较高的层级
+        modal.style.zIndex = '100';
+    } else {
+        console.error('Init.js: Add node type modal not found');
+    }
+});
+
+// 确保节点类型添加按钮的事件监听器
+console.log('Init.js: Setting up add-node-type-btn event listener...');
+const addNodeTypeBtn = document.getElementById('add-node-type-btn');
+if (addNodeTypeBtn) {
+    console.log('Init.js: add-node-type-btn found, adding click listener');
+    
+    // 移除可能存在的旧监听器
+    const newButton = addNodeTypeBtn.cloneNode(true);
+    addNodeTypeBtn.parentNode.replaceChild(newButton, addNodeTypeBtn);
+    
+    // 添加新的监听器
+    newButton.addEventListener('click', function() {
+        console.log('Init.js: add-node-type-btn clicked');
+        
+        // 只显示添加节点类型的模态框，不直接调用addNodeType函数
         const modal = document.getElementById('add-node-type-modal');
         if (modal) {
-            console.log('Opening add node type modal');
+            console.log('Init.js: Showing add-node-type-modal');
             modal.classList.remove('hidden');
-            // 确保模态框在z-index较高的层级
-            modal.style.zIndex = '100';
         } else {
-            console.error('Add node type modal not found');
+            console.error('Init.js: add-node-type-modal not found');
         }
+        
+        // 注意：addNodeType函数应该由模态框的提交按钮调用，而不是在这里直接调用
     });
+} else {
+    console.warn('Init.js: add-node-type-btn not found, checking for alternative');
+    // 尝试查找添加节点类型的提交按钮
+    const submitButton = document.querySelector('#add-node-type-modal button[type="submit"]');
+    if (submitButton) {
+        console.log('Init.js: Found add node type submit button, adding event listener');
+        submitButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Init.js: Add node type submit button clicked');
+            if (typeof addNodeType === 'function') {
+                console.log('Init.js: Calling local addNodeType() function');
+                addNodeType();
+            } else {
+                console.error('Init.js: addNodeType function not available');
+            }
+        });
+    }
+}
     
     // 保存节点类型 - 适配HTML中的ID
     document.getElementById('save-node-type-btn')?.addEventListener('click', () => {
@@ -489,28 +707,60 @@ function setupNodeTypeListeners() {
     
     // 添加节点类型模态框添加按钮事件监听
     document.getElementById('confirm-add-node-type-btn')?.addEventListener('click', () => {
-        const nodeTypeName = document.getElementById('new-node-type-name')?.value;
-        const nodeTypeIcon = document.getElementById('new-node-type-icon')?.value;
-        const nodeTypeColor = document.getElementById('new-node-type-color')?.value;
-        
-        if (nodeTypeName) {
-            console.log('Saving node type:', { name: nodeTypeName, icon: nodeTypeIcon, color: nodeTypeColor });
-            
-            // 直接实现添加节点类型的逻辑
-            addNodeTypeButton(nodeTypeName, nodeTypeIcon, nodeTypeColor);
-            
-            // 关闭模态框
-            document.getElementById('add-node-type-modal')?.classList.add('hidden');
-            
-            // 清空输入框
-            const nodeTypeNameInput = document.getElementById('new-node-type-name');
-            if (nodeTypeNameInput) nodeTypeNameInput.value = '';
-            
-            console.log('Node type added successfully');
+        // 确保调用index.html中已定义的addNodeType函数
+        if (typeof window.addNodeType === 'function') {
+            console.log('Calling window.addNodeType function');
+            window.addNodeType();
         } else {
-            console.error('Node type name cannot be empty');
+            console.error('window.addNodeType function not available');
         }
     });
+    
+    // 如果需要默认实现，提供一个更有用的版本
+    if (typeof window.addNodeType !== 'function') {
+        window.addNodeType = function() {
+            console.warn('Default addNodeType function called - Please ensure this function is properly defined in index.html');
+            // 尝试从表单获取数据并添加节点类型
+            try {
+                const typeName = document.getElementById('node-type-name')?.value;
+                const typeColor = document.getElementById('node-type-color')?.value;
+                
+                if (typeName && typeColor) {
+                    console.log(`Attempting to add node type: ${typeName}, color: ${typeColor}`);
+                    // 这里可以实现基本的节点类型添加逻辑
+                    window.nodeTypeStyles = window.nodeTypeStyles || {};
+                    window.nodeTypeStyles[typeName] = { color: typeColor };
+                    
+                    // 保存到localStorage
+                    try {
+                        localStorage.setItem('nodeTypeStyles', JSON.stringify(window.nodeTypeStyles));
+                        console.log('Node type styles saved to localStorage');
+                    } catch (saveError) {
+                        console.error('Error saving node type styles:', saveError);
+                    }
+                    
+                    // 更新UI
+                    if (typeof initializeTypeButtons === 'function') {
+                        initializeTypeButtons();
+                    }
+                    
+                    // 隐藏模态框
+                    const modal = document.getElementById('add-node-type-modal');
+                    if (modal) {
+                        modal.classList.add('hidden');
+                    }
+                    
+                    return true;
+                } else {
+                    console.error('Node type name or color not provided');
+                }
+            } catch (error) {
+                console.error('Error in default addNodeType function:', error);
+            }
+            return false;
+        };
+        console.log('Default addNodeType function registered');
+    }
 }
 
 /**
@@ -984,6 +1234,28 @@ window.appInit = {
                 }
             }
             
+            // 设置画布右键事件监控
+            setupCanvasRightClickMonitoring();
+            
+            // 确保UI正确初始化
+            if (typeof window.initializeTypeButtons === 'function') {
+                console.log('调用window.initializeTypeButtons()');
+                try {
+                    window.initializeTypeButtons();
+                    console.log('Type buttons initialized successfully');
+                } catch (error) {
+                    console.error('Error initializing type buttons:', error);
+                }
+            } else if (typeof initializeTypeButtons === 'function') {
+                console.log('调用local initializeTypeButtons()');
+                try {
+                    initializeTypeButtons();
+                    console.log('Type buttons initialized successfully with local function');
+                } catch (error) {
+                    console.error('Error initializing type buttons with local function:', error);
+                }
+            }
+            
             // 添加右键菜单测试按钮
             if (typeof window.addContextMenuTestButton === 'function') {
                 console.log('添加右键菜单测试按钮');
@@ -991,5 +1263,30 @@ window.appInit = {
             }
         }, 1000); // 延迟1秒，确保所有实例都已创建
     });
+
+// 监听窗口加载完成事件，确保所有资源加载完毕
+window.addEventListener('load', function() {
+    console.log('Window loaded, checking canvas and initializing UI');
+    setupCanvasRightClickMonitoring();
+    
+    // 确保UI正确初始化
+    if (typeof window.initializeTypeButtons === 'function') {
+        console.log('Calling window.initializeTypeButtons() on window load');
+        try {
+            window.initializeTypeButtons();
+            console.log('Type buttons initialized successfully');
+        } catch (error) {
+            console.error('Error initializing type buttons:', error);
+        }
+    } else if (typeof initializeTypeButtons === 'function') {
+        console.log('Calling local initializeTypeButtons() on window load');
+        try {
+            initializeTypeButtons();
+            console.log('Type buttons initialized successfully with local function');
+        } catch (error) {
+            console.error('Error initializing type buttons with local function:', error);
+        }
+    }
+});
 
 // 应用初始化由index.html中的DOMContentLoaded事件处理
