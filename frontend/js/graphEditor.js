@@ -1,6 +1,5 @@
 /**
- * 图形编辑器核心功能模块
- */
+ * 图形编辑器核心功能模�? */
 
 /**
  * 选择节点并显示其属性
@@ -9,34 +8,49 @@
 window.selectNode = function(node) {
     try {
         // 确保节点数据可用
-        const nodeData = typeof node.data === 'function' ? node.data() : node;
+        var nodeData = typeof node.data === 'function' ? node.data() : node;
         if (!nodeData || !nodeData.id) {
             console.error('Neo4j Editor: Invalid node object passed to selectNode');
             return;
         }
         
         // 显示节点属性面板，隐藏关系属性面板
-        const nodePropertiesPanel = document.getElementById('node-properties-panel');
-        const relationshipPropertiesPanel = document.getElementById('relationship-properties-panel');
+        var nodePropertiesPanel = document.getElementById('node-properties-panel');
+        var relationshipPropertiesPanel = document.getElementById('relationship-properties-panel');
         
-        if (nodePropertiesPanel) nodePropertiesPanel.classList.remove('hidden');
-        if (relationshipPropertiesPanel) relationshipPropertiesPanel.classList.add('hidden');
+        // 使用className替代classList以提高兼容性
+        if (nodePropertiesPanel) {
+            nodePropertiesPanel.className = nodePropertiesPanel.className.replace(/\bhidden\b/, '');
+        }
+        if (relationshipPropertiesPanel) {
+            // 确保只添加一次hidden类
+            if (relationshipPropertiesPanel.className.indexOf('hidden') === -1) {
+                relationshipPropertiesPanel.className += ' hidden';
+            }
+        }
         
         // 填充节点标签
-        const nodeLabel = document.getElementById('node-label');
+        var nodeLabel = document.getElementById('node-label');
         if (nodeLabel) {
             nodeLabel.value = nodeData.label || 'Node';
             // 添加标签更改事件
             nodeLabel.onchange = function() {
                 // 更新节点标签
                 if (window.sharedGraphData && window.sharedGraphData.nodes) {
-                    const targetNode = window.sharedGraphData.nodes.find(n => 
-                        n && n.data && n.data.id === nodeData.id
-                    );
+                    // 使用for循环替代find方法
+                    var targetNode = null;
+                    var nodes = window.sharedGraphData.nodes;
+                    for (var i = 0; i < nodes.length; i++) {
+                        var n = nodes[i];
+                        if (n && n.data && n.data.id === nodeData.id) {
+                            targetNode = n;
+                            break;
+                        }
+                    }
                     if (targetNode && targetNode.data) {
                         targetNode.data.label = this.value;
-                        // 同步更新
-                        if (typeof window.syncGraphData === 'function') {
+                        // 同步更新，确保当前没有正在进行的同步操作
+                        if (typeof window.syncGraphData === 'function' && !window.isSyncingGraphData) {
                             window.syncGraphData();
                         }
                         // 显示提示
@@ -45,161 +59,7 @@ window.selectNode = function(node) {
                         }
                     }
                 }
-            };
-
-/**
- * 添加新的关系类型
- */
-window.addRelationshipType = function() {
-    const name = document.getElementById('new-relationship-type-name').value;
-    const color = document.getElementById('new-relationship-type-color').value;
-    
-    if (!name) {
-        if (typeof window.showToast === 'function') {
-            window.showToast('Name is required');
-        }
-        return;
-    }
-    
-    // 检查是否已存在
-    if (window.relationshipTypeStyles[name]) {
-        if (typeof window.showToast === 'function') {
-            window.showToast(`Relationship type ${name} already exists`);
-        }
-        return;
-    }
-    
-    // Add to relationship type styles
-    window.relationshipTypeStyles[name] = {
-        'line-color': color,
-        'target-arrow-color': color
-    };
-    
-    // 保存到localStorage
-    if (typeof window.saveRelationshipTypeStyles === 'function') {
-        window.saveRelationshipTypeStyles();
-    }
-    
-    // Add to relationship type buttons
-    const relationshipTypesContainer = document.querySelectorAll('.panel')[1]?.querySelector('.panel-content');
-    if (relationshipTypesContainer) {
-        const btn = document.createElement('div');
-        btn.className = 'node-type-btn';
-        btn.dataset.type = name;
-        btn.innerHTML = `
-            <i class="fa fa-long-arrow-right node-type-icon"></i>
-            <span>${name}</span>
-        `;
-        
-        // Add event listener
-        btn.addEventListener('click', function() {
-            const type = this.dataset.type;
-            selectedRelationshipType = type;
-            document.querySelectorAll('.node-type-btn').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-        });
-        
-        // 添加右键菜单支持编辑和删除
-        btn.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            if (typeof window.showContextMenu === 'function') {
-                window.showContextMenu(e.clientX, e.clientY, [
-                    { text: 'Edit', action: () => window.showEditRelationshipTypeModal(name) },
-                    { text: 'Delete', action: () => window.deleteRelationshipType(name) }
-                ]);
             }
-        });
-        
-        relationshipTypesContainer.appendChild(btn);
-    }
-    
-    // Close modal
-    const modal = document.getElementById('add-relationship-type-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
-    
-    // Reset form
-    const nameInput = document.getElementById('new-relationship-type-name');
-    if (nameInput) {
-        nameInput.value = '';
-    }
-    
-    // Show toast
-    if (typeof window.showToast === 'function') {
-        window.showToast(`Relationship type ${name} added`);
-    }
-};
-
-
-/**
- * 批量为所有节点创建同级网关系（当从Neo4j加载数据后调用）
- */
-window.createAllSiblingRelationships = function() {
-    // 按层级分组节点
-    const nodesByLevel = {};
-    cy.nodes().forEach(node => {
-        const level = node.data('level') || 1;
-        if (!nodesByLevel[level]) {
-            nodesByLevel[level] = [];
-        }
-        nodesByLevel[level].push(node);
-    });
-    
-    // 为每个层级的节点创建同级关系
-    Object.values(nodesByLevel).forEach(nodeGroup => {
-        if (nodeGroup.length > 1) {
-            // 为每对节点创建双向关系
-            for (let i = 0; i < nodeGroup.length; i++) {
-                for (let j = i + 1; j < nodeGroup.length; j++) {
-                    const node1 = nodeGroup[i];
-                    const node2 = nodeGroup[j];
-                    
-                    // 检查关系是否已存在
-                    const existingRelations = node1.connectedEdges().filter(edge => {
-                        return edge.data('type') === siblingRelationshipType && 
-                               ((edge.source().id() === node1.id() && edge.target().id() === node2.id()) ||
-                                (edge.source().id() === node2.id() && edge.target().id() === node1.id()));
-                    });
-                    
-                    // 如果关系不存在，则创建
-                    if (existingRelations.length === 0) {
-                        const id = `rel_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                        
-                        // 获取关系样式
-                        const style = relationshipTypeStyles[siblingRelationshipType] || {
-                            'line-color': '#00BCD4',
-                            'target-arrow-color': '#00BCD4',
-                            'source-arrow-color': '#00BCD4'
-                        };
-                        
-                        cy.add({
-                            group: 'edges',
-                            data: {
-                                id: id,
-                                source: node1.id(),
-                                target: node2.id(),
-                                label: siblingRelationshipType,
-                                'line-color': style['line-color'],
-                                'target-arrow-color': style['target-arrow-color'],
-                                'source-arrow-color': style['source-arrow-color'],
-                                'source-arrow-shape': 'triangle',
-                                'target-arrow-shape': 'triangle',
-                                type: siblingRelationshipType,
-                                properties: {}
-                            },
-                            style: {
-                                'line-style': 'dashed',
-                                'width': 2.5,
-                                'opacity': 0.8
-                            }
-                        });
-                    }
-                }
-            }
-        }
-    });
-};
         }
         
         // 清除现有属性
@@ -229,46 +89,56 @@ window.createAllSiblingRelationships = function() {
             displayPropertySelect.appendChild(defaultOption);
             
             // 获取节点的所有属性并添加为选项
-            const properties = nodeData.properties || {};
-            for (const key of Object.keys(properties)) {
-                const option = document.createElement('option');
+            var properties = nodeData.properties || {};
+            // 使用传统for循环替代for...of
+            var keys = Object.keys(properties);
+            for (var k = 0; k < keys.length; k++) {
+                var key = keys[k];
+                var option = document.createElement('option');
                 option.value = key;
                 option.textContent = key + ': ' + properties[key];
                 option.selected = nodeData.displayProperty === key;
                 displayPropertySelect.appendChild(option);
             }
             
-            // 添加事件监听器
-            displayPropertySelect.addEventListener('change', function() {
-                const nodeId = this.dataset.nodeId;
+            // 使用onchange替代addEventListener
+            displayPropertySelect.onchange = function() {
+                var nodeId = this.getAttribute('data-node-id');
                 if (window.sharedGraphData && window.sharedGraphData.nodes) {
-                    const selectedNode = window.sharedGraphData.nodes.find(n => 
-                        n && n.data && n.data.id === nodeId
-                    );
+                    // 使用for循环替代find方法
+                    var selectedNode = null;
+                    var nodes = window.sharedGraphData.nodes;
+                    for (var i = 0; i < nodes.length; i++) {
+                        var n = nodes[i];
+                        if (n && n.data && n.data.id === nodeId) {
+                            selectedNode = n;
+                            break;
+                        }
+                    }
                     if (selectedNode && selectedNode.data) {
                         selectedNode.data.displayProperty = this.value || null;
-                        // 同步更新
-                        if (typeof window.syncGraphData === 'function') {
+                        // 同步更新，确保当前没有正在进行的同步操作
+                        if (typeof window.syncGraphData === 'function' && !window.isSyncingGraphData) {
                             window.syncGraphData();
                         }
                     }
                 }
-            });
+            };
             
             displayPropertyGroup.appendChild(displayPropertyLabel);
             displayPropertyGroup.appendChild(displayPropertySelect);
             propertiesContainer.appendChild(displayPropertyGroup);
             
             // 添加层级(level)属性输入字段
-            const levelFormGroup = document.createElement('div');
+            var levelFormGroup = document.createElement('div');
             levelFormGroup.className = 'form-group border-b border-gray-700 pb-4 mb-4';
             
-            const levelLabel = document.createElement('label');
+            var levelLabel = document.createElement('label');
             levelLabel.className = 'form-label font-bold text-accent';
             levelLabel.htmlFor = 'node-level';
             levelLabel.textContent = 'Level (Hierarchy)';
             
-            const levelInput = document.createElement('input');
+            var levelInput = document.createElement('input');
             levelInput.type = 'number';
             levelInput.id = 'node-level';
             levelInput.className = 'form-input';
@@ -279,18 +149,25 @@ window.createAllSiblingRelationships = function() {
             // 添加层级更改事件
             levelInput.onchange = function() {
                 if (window.sharedGraphData && window.sharedGraphData.nodes) {
-                    const targetNode = window.sharedGraphData.nodes.find(n => 
-                        n && n.data && n.data.id === nodeData.id
-                    );
+                    // 使用for循环替代find方法
+                    var targetNode = null;
+                    var nodes = window.sharedGraphData.nodes;
+                    for (var i = 0; i < nodes.length; i++) {
+                        var n = nodes[i];
+                        if (n && n.data && n.data.id === nodeData.id) {
+                            targetNode = n;
+                            break;
+                        }
+                    }
                     if (targetNode && targetNode.data) {
                         targetNode.data.level = parseInt(this.value) || 1;
                         // 同步更新
-                        if (typeof window.syncGraphData === 'function') {
+                        if (typeof window.syncGraphData === 'function' && !window.isSyncingGraphData) {
                             window.syncGraphData();
                         }
                         // 显示提示
                         if (typeof window.showToast === 'function') {
-                            window.showToast(`Node properties updated. Level: ${targetNode.data.level}`);
+                            window.showToast('Node properties updated. Level: ' + targetNode.data.level);
                         }
                     }
                 }
@@ -307,38 +184,236 @@ window.createAllSiblingRelationships = function() {
                 addPropertyInput(propertiesContainer, 'age', '', nodeData.id);
             } else {
                 // 添加现有属性
-                for (const [key, value] of Object.entries(properties)) {
+                // 使用传统for循环替代Object.entries和for...of
+                var keys = Object.keys(properties);
+                for (var i = 0; i < keys.length; i++) {
+                    var key = keys[i];
+                    var value = properties[key];
                     addPropertyInput(propertiesContainer, key, value, nodeData.id);
                 }
             }
             
             // 添加添加新属性按钮
-            const addPropertyBtn = document.createElement('button');
+            var addPropertyBtn = document.createElement('button');
             addPropertyBtn.className = 'mt-4 w-full bg-accent hover:bg-blue-600 text-white py-2 px-4 rounded';
             addPropertyBtn.textContent = 'Add Property';
-            addPropertyBtn.addEventListener('click', function() {
+            // 使用onclick替代addEventListener
+            addPropertyBtn.onclick = function() {
                 addPropertyInput(propertiesContainer, '', '', nodeData.id);
-            });
+            };
             propertiesContainer.appendChild(addPropertyBtn);
         }
     } catch (error) {
         console.error('Neo4j Editor: Error in selectNode function:', error);
     }
 };
+/**
+ * 添加新的关系类型
+ */
+window.addRelationshipType = function() {
+    var name = document.getElementById('new-relationship-type-name').value;
+    var color = document.getElementById('new-relationship-type-color').value;
+    
+    if (!name) {
+        if (typeof window.showToast === 'function') {
+            window.showToast('Name is required');
+        }
+        return;
+    }
+    
+    // 检查是否已存在
+    if (window.relationshipTypeStyles[name]) {
+        if (typeof window.showToast === 'function') {
+            window.showToast('Relationship type ' + name + ' already exists');
+        }
+        return;
+    }
+    
+    // Add to relationship type styles
+    window.relationshipTypeStyles[name] = {
+        'line-color': color,
+        'target-arrow-color': color
+    };
+    
+    // 保存到localStorage
+    if (typeof window.saveRelationshipTypeStyles === 'function') {
+        window.saveRelationshipTypeStyles();
+    }
+    
+    // Add to relationship type buttons
+    // 替代可选链操作符
+    var relationshipTypesContainer;
+    var panels = document.querySelectorAll('.panel');
+    if (panels && panels[1]) {
+        relationshipTypesContainer = panels[1].querySelector('.panel-content');
+    }
+    
+    if (relationshipTypesContainer) {
+        var btn = document.createElement('div');
+        btn.className = 'node-type-btn';
+        // 使用setAttribute替代dataset
+        btn.setAttribute('data-type', name);
+        btn.innerHTML = `
+            <i class="fa fa-long-arrow-right node-type-icon"></i>
+            <span>${name}</span>
+        `;
+        
+        // 使用onclick替代addEventListener
+        btn.onclick = function() {
+            var type = this.getAttribute('data-type');
+            selectedRelationshipType = type;
+            // 使用getElementsByClassName并循环替代querySelectorAll和forEach
+            var allBtns = document.getElementsByClassName('node-type-btn');
+            for (var i = 0; i < allBtns.length; i++) {
+                var b = allBtns[i];
+                // 使用className替代classList
+                b.className = b.className.replace(/\bactive\b/, '');
+            }
+            // 确保只添加一次active类
+            if (this.className.indexOf('active') === -1) {
+                this.className += ' active';
+            }
+        };
+        
+        // 添加右键菜单支持编辑和删除
+        btn.oncontextmenu = function(e) {
+            // 兼容写法阻止默认行为
+            if (e.preventDefault) {
+                e.preventDefault();
+            } else {
+                e.returnValue = false;
+            }
+            if (typeof window.showContextMenu === 'function') {
+                window.showContextMenu(e.clientX, e.clientY, [
+                    { text: 'Edit', action: function() { window.showEditRelationshipTypeModal(name); } },
+                    { text: 'Delete', action: function() { window.deleteRelationshipType(name); } }
+                ]);
+            }
+            return false; // 额外的兼容处理
+        };
+        
+        relationshipTypesContainer.appendChild(btn);
+    }
+    
+    // Close modal
+    const modal = document.getElementById('add-relationship-type-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    // Reset form
+    const nameInput = document.getElementById('new-relationship-type-name');
+    if (nameInput) {
+        nameInput.value = '';
+    }
+    
+    // Show toast
+    if (typeof window.showToast === 'function') {
+        window.showToast('Relationship type ' + name + ' added');
+    }
+}
+
+
+/**
+ * 批量为所有节点创建同级网关系（当从Neo4j加载数据后调用）
+ */
+window.createAllSiblingRelationships = function() {
+    // 按层级分组节点
+    var nodesByLevel = {};
+    // 使用传统循环替代forEach
+    var allNodes = cy.nodes();
+    for (var n = 0; n < allNodes.length; n++) {
+        var node = allNodes[n];
+        var level = node.data('level') || 1;
+        if (!nodesByLevel[level]) {
+            nodesByLevel[level] = [];
+        }
+        nodesByLevel[level].push(node);
+    }
+    
+    // 为每个层级的节点创建同级关系
+    // 替代Object.values和forEach
+    for (var levelKey in nodesByLevel) {
+        if (nodesByLevel.hasOwnProperty(levelKey)) {
+            var nodeGroup = nodesByLevel[levelKey];
+            if (nodeGroup.length > 1) {
+                // 为每对节点创建双向关系
+                for (var i = 0; i < nodeGroup.length; i++) {
+                    for (var j = i + 1; j < nodeGroup.length; j++) {
+                        var node1 = nodeGroup[i];
+                        var node2 = nodeGroup[j];
+                        
+                        // 检查关系是否已存在
+                        // 使用传统循环替代filter
+                        var connectedEdges = node1.connectedEdges();
+                        var existingRelations = [];
+                        for (var e = 0; e < connectedEdges.length; e++) {
+                            var edge = connectedEdges[e];
+                            if (edge.data('type') === siblingRelationshipType && 
+                               ((edge.source().id() === node1.id() && edge.target().id() === node2.id()) ||
+                                (edge.source().id() === node2.id() && edge.target().id() === node1.id()))) {
+                                existingRelations.push(edge);
+                            }
+                        }
+                    
+                        // 如果关系不存在，则创建
+                        if (existingRelations.length === 0) {
+                            var id = 'rel_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                            
+                            // 获取关系样式
+                            var style = relationshipTypeStyles[siblingRelationshipType] || {
+                                'line-color': '#00BCD4',
+                                'target-arrow-color': '#00BCD4',
+                                'source-arrow-color': '#00BCD4'
+                            };
+                        
+                            cy.add({
+                                group: 'edges',
+                                data: {
+                                    id: id,
+                                    source: node1.id(),
+                                    target: node2.id(),
+                                    label: siblingRelationshipType,
+                                    'line-color': style['line-color'],
+                                    'target-arrow-color': style['target-arrow-color'],
+                                    'source-arrow-color': style['source-arrow-color'],
+                                    'source-arrow-shape': 'triangle',
+                                    'target-arrow-shape': 'triangle',
+                                    type: siblingRelationshipType,
+                                    properties: {}
+                                },
+                                style: {
+                                    'line-style': 'dashed',
+                                    'width': 2.5,
+                                    'opacity': 0.8
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+};
 
 // 选择边并显示其属性
 window.selectEdge = function(edge) {
     // 显示关系属性面板，隐藏节点属性面板
-    const nodePanel = document.getElementById('node-properties-panel');
-    const relationshipPanel = document.getElementById('relationship-properties-panel');
+    var nodePanel = document.getElementById('node-properties-panel');
+    var relationshipPanel = document.getElementById('relationship-properties-panel');
     
     if (nodePanel && relationshipPanel) {
-        nodePanel.classList.add('hidden');
-        relationshipPanel.classList.remove('hidden');
+        // 使用className替代classList
+        // 确保只添加一次hidden类
+        if (nodePanel.className.indexOf('hidden') === -1) {
+            nodePanel.className += ' hidden';
+        }
+        // 移除hidden类
+        relationshipPanel.className = relationshipPanel.className.replace(/\bhidden\b/, '');
     }
     
     // 填充关系标签
-    const relationshipLabel = document.getElementById('relationship-label');
+    var relationshipLabel = document.getElementById('relationship-label');
     if (relationshipLabel) {
         relationshipLabel.value = edge.data('label');
     }
@@ -404,6 +479,7 @@ window.selectEdge = function(edge) {
         }
     }
     
+    
     // 存储选中的边ID在应用按钮中
     const applyBtn = document.getElementById('apply-relationship-properties-btn');
     if (applyBtn) {
@@ -411,94 +487,8 @@ window.selectEdge = function(edge) {
     }
 };
 
-// 显示编辑节点类型模态框
-window.showEditNodeTypeModal = function(type) {
-    const modal = document.getElementById('add-node-type-modal');
-    const title = modal.querySelector('h3');
-    const confirmBtn = document.getElementById('confirm-add-node-type-btn');
-    
-    // 保存原始函数引用
-    const originalConfirmHandler = confirmBtn.onclick;
-    
-    // 修改模态框标题
-    title.textContent = 'Edit Node Type';
-    
-    // 填充表单数据
-    document.getElementById('new-node-type-name').value = type;
-    const style = window.nodeTypeStyles[type];
-    if (style) {
-        document.getElementById('new-node-type-icon').value = style.icon || 'fa-circle';
-        document.getElementById('new-node-type-color').value = style['background-color'] || '#2196F3';
-    }
-    
-    // 显示模态框
-    modal.classList.remove('hidden');
-    
-    // 重写确认按钮事件
-    confirmBtn.onclick = function() {
-        const newName = document.getElementById('new-node-type-name').value;
-        const icon = document.getElementById('new-node-type-icon').value;
-        const color = document.getElementById('new-node-type-color').value;
-        
-        if (!newName) {
-            window.showToast('Name is required');
-            return;
-        }
-        
-        // 更新节点类型样式
-        window.nodeTypeStyles[newName] = {
-            'background-color': color,
-            'icon': icon
-        };
-        
-        // 如果名称改变，删除旧的类型样式
-        if (newName !== type) {
-            delete window.nodeTypeStyles[type];
-        }
-        
-        // 更新节点类型按钮
-        const btn = document.querySelector(`.node-type-btn[data-type="${type}"]`);
-        if (btn) {
-            btn.dataset.type = newName;
-            btn.innerHTML = `
-                <i class="fa ${icon} node-type-icon"></i>
-                <span>${newName}</span>
-            `;
-        }
-        
-        // 更新使用该类型的所有节点
-        if (window.cyTree) {
-            window.cyTree.nodes().filter(`node[data-type="${type}"]`).forEach(node => {
-                updateNodeStyle(node, newName, color, icon);
-            });
-        }
-        
-        if (window.cyNetwork) {
-            window.cyNetwork.nodes().filter(`node[data-type="${type}"]`).forEach(node => {
-                updateNodeStyle(node, newName, color, icon);
-            });
-        }
-        
-        // 保存到localStorage
-        saveNodeTypeStyles();
-        
-        // 重置模态框
-        modal.classList.add('hidden');
-        document.getElementById('new-node-type-name').value = '';
-        title.textContent = 'Add Node Type';
-        
-        // 恢复原始确认按钮事件
-        confirmBtn.onclick = originalConfirmHandler;
-        
-        // 显示提示
-        window.showToast(`Node type ${type} updated to ${newName}`);
-        
-        // 重新着色节点
-        if (typeof window.colorNodesByType === 'function') {
-            window.colorNodesByType();
-        }
-    };
-};
+
+// 编辑节点类型模态框功能已移至nodeTypeManager.js中实现，使用专用的edit-node-type-modal
 
 // 更新节点样式
 function updateNodeStyle(node, type, color, icon) {
@@ -547,8 +537,7 @@ window.showEditRelationshipTypeModal = function(type) {
             'source-arrow-color': type === window.siblingRelationshipType ? color : undefined
         };
         
-        // 如果名称改变，删除旧的类型样式
-        if (newName !== type) {
+        // 如果名称改变，删除旧的类型样�?        if (newName !== type) {
             delete window.relationshipTypeStyles[type];
         }
         
@@ -559,8 +548,7 @@ window.showEditRelationshipTypeModal = function(type) {
             btn.querySelector('span').textContent = newName;
         }
         
-        // 更新使用该类型的所有关系
-        const isSibling = type === window.siblingRelationshipType;
+        // 更新使用该类型的所有关�?        const isSibling = type === window.siblingRelationshipType;
         if (window.cyTree) {
             window.cyTree.edges().filter(`edge[data-type="${type}"]`).forEach(edge => {
                 updateEdgeStyle(edge, newName, color, isSibling);
@@ -585,9 +573,8 @@ window.showEditRelationshipTypeModal = function(type) {
         confirmBtn.onclick = originalConfirmHandler;
         
         // 显示提示
-        window.showToast(`Relationship type ${type} updated to ${newName}`);
+        window.showToast('Relationship type ' + type + ' updated to ' + newName);
     };
-};
 
 // 更新边样式
 function updateEdgeStyle(edge, type, color, isSibling) {
@@ -604,23 +591,26 @@ function updateEdgeStyle(edge, type, color, isSibling) {
 function saveNodeTypeStyles() {
     try {
         const nodeTypeStyles = JSON.stringify(window.nodeTypeStyles || {});
-        localStorage.setItem('neo4jEditorNodeTypes', nodeTypeStyles);
-        showToast('节点类型样式已保存', 'success');
+        localStorage.setItem('neo4j-editor-node-types', nodeTypeStyles);
+        console.log('Node types saved with key: neo4j-editor-node-types');
+        window.showToast('节点类型样式已保存', 'success');
     } catch (error) {
         console.error('保存节点类型样式失败:', error);
-        showToast('保存失败: ' + error.message, 'error');
+        window.showToast('保存失败: ' + error.message, 'error');
     }
 }
 
 // 保存关系类型样式到localStorage
 function saveRelationshipTypeStyles() {
+    // 直接实现保存逻辑，避免递归调用
     try {
         const relationshipTypeStyles = JSON.stringify(window.relationshipTypeStyles || {});
-        localStorage.setItem('neo4jEditorRelationshipTypes', relationshipTypeStyles);
-        showToast('关系类型样式已保存', 'success');
+        localStorage.setItem('neo4j-editor-relationship-types', relationshipTypeStyles);
+        console.log('Relationship types saved with key: neo4j-editor-relationship-types');
+        window.showToast('关系类型样式已保存', 'success');
     } catch (error) {
         console.error('保存关系类型样式失败:', error);
-        showToast('保存失败: ' + error.message, 'error');
+        window.showToast('保存失败: ' + error.message, 'error');
     }
 }
 
@@ -653,9 +643,9 @@ function shadeColor(color, percent) {
 window.colorNodesByType = function() {
     if (!window.cyTree) return;
     
-    // 创建颜色比例尺 - 使用更丰富的颜色集
+    // 创建颜色比例尺- 使用更丰富的颜色集
     const nodeTypes = [...new Set(window.cyTree.nodes().map(node => node.data('type')))];
-    // 使用更鲜艳、对比度更高的颜色集合
+    // 使用更鲜艳、对比度更高的颜色集
     const customColors = [
         '#2196F3', '#FF5722', '#4CAF50', '#9C27B0', 
         '#F44336', '#00BCD4', '#FFC107', '#795548',
@@ -711,9 +701,9 @@ window.optimizeGraphLayout = function() {
         edgeWeightInfluence: 0.5
     }).run();
     
-    // 然后应用层级布局，确保树状结构清晰
+    // 然后应用层级布局，确保树状结构清
     applyHierarchicalLayout();
-};
+}
 
 // 应用层级布局，突出显示树状结构
 function applyHierarchicalLayout() {
@@ -755,7 +745,9 @@ function applyHierarchicalLayout() {
         const startX = centerX - totalWidth / 2;
         
         // 为每个节点分配位置
-        nodesAtLevel.forEach((node, index) => {
+        for (var i = 0; i < nodesAtLevel.length; i++) {
+            var node = nodesAtLevel[i];
+            var index = i;
             // 计算X位置，考虑节点数量的平衡分布
             const x = startX + index * horizontalSpacing;
             
@@ -765,9 +757,9 @@ function applyHierarchicalLayout() {
             }, { 
                 duration: 1500,
                 easing: 'ease-in-out'
-            });
-        });
-    });
+              });
+          }
+      });
     
     // 调整同级关系的样式，使其更加明显
     window.cyTree.edges(`[type="${siblingRelationshipType}"]`).forEach(edge => {
@@ -789,7 +781,7 @@ function applyHierarchicalLayout() {
     });
     
     // 延迟适应视图，让动画完成
-    setTimeout(() => {
+    setTimeout(function() {
         window.cyTree.fit(50); // 添加边距
         // 应用平滑的视觉过渡
         window.cyTree.animate({
@@ -845,8 +837,7 @@ window.applyNodeProperties = function() {
         }
     });
     
-    // 更新节点 - 保留未被覆盖的现有属性
-    const existingProperties = node.data('properties') || {};
+    // 更新节点 - 保留未被覆盖的现有属�?    const existingProperties = node.data('properties') || {};
     const updatedData = {
         label: label,
         level: level,
@@ -896,7 +887,7 @@ window.applyNodeProperties = function() {
     }
     
     // 显示提示
-    window.showToast(`Node properties updated. Level: ${level}`);
+    window.showToast('Node properties updated. Level: ' + level);
 };
 
 // 移除节点与特定层级节点的同层关系
@@ -925,7 +916,7 @@ function removeSiblingRelationships(nodeId, level) {
             siblingEdges.remove();
         }
     }
-}
+};
 
 // 创建节点与同层级节点的关系
 function createSiblingRelationships(nodeId, level) {
@@ -937,8 +928,7 @@ function createSiblingRelationships(nodeId, level) {
     const node = targetCy.getElementById(nodeId);
     if (!node) return;
     
-    // 查找同层级的所有节点
-    const siblings = targetCy.nodes().filter(node => node.data('level') === level && node.id() !== nodeId);
+    // 查找同层级的所有节�?    const siblings = targetCy.nodes().filter(node => node.data('level') === level && node.id() !== nodeId);
     
     siblings.forEach(sibling => {
         // 检查关系是否已存在
@@ -948,7 +938,7 @@ function createSiblingRelationships(nodeId, level) {
         });
         
         if (existingEdge.empty()) {
-            // 创建双向边
+            // 创建双向关系
             createRelationship(nodeId, sibling.id(), siblingType, { bidirectional: true });
         }
     });
@@ -975,8 +965,7 @@ window.applyRelationshipProperties = function() {
         return;
     }
     
-    // 获取属性
-    const properties = {};
+    // 获取属�?    const properties = {};
     const propertyInputs = document.querySelectorAll('#relationship-properties-container .form-input[data-key]');
     propertyInputs.forEach(input => {
         const key = input.dataset.key;
@@ -996,7 +985,7 @@ window.applyRelationshipProperties = function() {
         }
     });
     
-    // 更新两个视图中的边
+    // 更新两个视图中的关系
     const updatedData = {
         label: label,
         properties: properties
@@ -1067,8 +1056,7 @@ window.graphEditor.selectEdge = window.selectEdge;
  * 添加属性输入框
  * @param {HTMLElement} container - 容器元素
  * @param {string} key - 属性键
- * @param {string} value - 属性值
- * @param {string} nodeId - 节点ID
+ * @param {string} value - 属性�? * @param {string} nodeId - 节点ID
  */
 function addPropertyInput(container, key, value, nodeId) {
     try {
@@ -1101,13 +1089,13 @@ function addPropertyInput(container, key, value, nodeId) {
                     );
                     if (targetNode && targetNode.data && targetNode.data.properties) {
                         delete targetNode.data.properties[key];
-                        // 同步更新
-                        if (typeof window.syncGraphData === 'function') {
+                        // 同步更新，确保当前没有正在进行的同步操作
+                        if (typeof window.syncGraphData === 'function' && !window.isSyncingGraphData) {
                             window.syncGraphData();
                         }
                         // 显示提示
                         if (typeof window.showToast === 'function') {
-                            window.showToast(`Property ${key} deleted`);
+                            window.showToast('Property ' + key + ' deleted');
                         }
                     }
                 }
@@ -1150,14 +1138,14 @@ function addPropertyInput(container, key, value, nodeId) {
                     // 更新键引用
                     key = newKey;
                     
-                    // 同步更新
-                    if (typeof window.syncGraphData === 'function') {
+                    // 同步更新，确保当前没有正在进行的同步操作
+                    if (typeof window.syncGraphData === 'function' && !window.isSyncingGraphData) {
                         window.syncGraphData();
                     }
                     
                     // 显示提示
                     if (typeof window.showToast === 'function') {
-                        window.showToast(`Property ${newKey} updated`);
+                        window.showToast('Property ' + newKey + ' updated');
                     }
                 }
             }
@@ -1170,7 +1158,8 @@ function addPropertyInput(container, key, value, nodeId) {
         propertyGroup.appendChild(valueInput);
         propertyGroup.appendChild(deleteBtn);
         container.appendChild(propertyGroup);
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Neo4j Editor: Error in addPropertyInput function:', error);
     }
 }
@@ -1278,7 +1267,7 @@ window.createNodeAtPosition = function(type, position) {
         
         return nodeData;
     } catch (error) {
-        console.error('在指定位置创建节点失败:', error);
+        console.error('在指定位置创建节点失败', error);
         if (typeof window.showToast === 'function') {
             window.showToast('节点创建失败: ' + error.message, 'error');
         }
@@ -1286,25 +1275,108 @@ window.createNodeAtPosition = function(type, position) {
     }
 };
 
+// 检查节点code唯一性
+window.checkNodeCodeUnique = function(code, excludeNodeId = null) {
+    try {
+        const sharedData = window.sharedGraphData || { nodes: [] };
+        return !sharedData.nodes.some(node => 
+            node && node.data && 
+            node.data.code === code && 
+            (!excludeNodeId || node.data.id !== excludeNodeId)
+        );
+    } catch (error) {
+        console.error('Neo4j Editor: Error checking code uniqueness:', error);
+        return false;
+    }
+};
+
+// 生成唯一节点code
+window.generateUniqueNodeCode = function() {
+    try {
+        // 获取当前最大code数值
+        const sharedData = window.sharedGraphData || { nodes: [] };
+        let maxCodeNum = 0;
+        
+        sharedData.nodes.forEach(node => {
+            if (node && node.data && node.data.code) {
+                // 提取数字部分
+                const match = node.data.code.match(/CODE_(\d+)/);
+                if (match && match[1]) {
+                    const num = parseInt(match[1], 10);
+                    if (!isNaN(num) && num > maxCodeNum) {
+                        maxCodeNum = num;
+                    }
+                }
+            }
+        });
+        
+        // 生成下一个code
+        let newCodeNum = maxCodeNum + 1;
+        let newCode = `CODE_${newCodeNum}`;
+        
+        // 确保唯一性（防止并发问题）
+        let attempts = 0;
+        while (!window.checkNodeCodeUnique(newCode) && attempts < 100) {
+            newCodeNum++;
+            newCode = `CODE_${newCodeNum}`;
+            attempts++;
+        }
+        
+        if (attempts >= 100) {
+            // 回退方案：使用时间戳确保唯一性
+            newCode = `CODE_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        }
+        
+        return newCode;
+    } catch (error) {
+        console.error('Neo4j Editor: Error generating unique code:', error);
+        // 回退方案
+        return `CODE_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    }
+};
+
 // 创建节点的核心函数
-window.createNode = function(type, position) {
+window.createNode = function(type, position, templateData = null) {
     try {
         // 生成唯一ID
         const nodeId = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const nodeType = type || window.selectedNodeType || 'default';
         const style = window.nodeTypeStyles[nodeType] || { 'background-color': '#2196F3', 'icon': 'fa-circle' };
         
-        // 直接创建节点数据
-        const nodeData = {
+        // 创建基础节点数据
+        let nodeData = {
             id: nodeId,
             label: nodeType,
-            type: nodeType,
+            type: nodeType, // 确保类型正确设置为选中的节点类型
             level: 1,
             'background-color': style['background-color'],
             icon: style.icon,
-            labels: ['tree', 'network'], // 添加到两个视图
+            code: window.generateUniqueNodeCode(),
+            labels: ['tree', 'network', nodeType], // 添加节点类型作为标签
             properties: {}
         };
+        
+        // 应用模板数据（如果提供）
+        if (templateData && typeof templateData === 'object') {
+            // 应用标签
+            if (Array.isArray(templateData.labels)) {
+                nodeData.labels = [...new Set([...nodeData.labels, ...templateData.labels])];
+            }
+            
+            // 应用属性
+            if (templateData.properties && typeof templateData.properties === 'object') {
+                nodeData.properties = { ...nodeData.properties, ...templateData.properties };
+            }
+            
+            // 应用自定义字段
+            if (templateData.customFields && typeof templateData.customFields === 'object') {
+                Object.keys(templateData.customFields).forEach(key => {
+                    if (key !== 'id' && key !== 'code') { // 避免覆盖关键字段
+                        nodeData[key] = templateData.customFields[key];
+                    }
+                });
+            }
+        }
         
         // 创建节点对象
         const newNode = {
@@ -1324,16 +1396,137 @@ window.createNode = function(type, position) {
         
         // 显示提示
         if (typeof window.showToast === 'function') {
-            window.showToast(`Node ${nodeData.label} created`);
+            window.showToast('Node ' + nodeData.label + ' created, Code: ' + nodeData.code);
         }
         
-        return { data: () => nodeData }; // 返回一个包含data方法的对象，模拟cytoscape节点
+        return { data: function() { return nodeData; } }; // 返回一个包含data方法的对象，模拟cytoscape节点
     } catch (error) {
         console.error('Neo4j Editor: Error creating node:', error);
         if (typeof window.showToast === 'function') {
-            window.showToast('Failed to create node');
+            window.showToast('Failed to create node: ' + error.message);
         }
         return null;
+    }
+};
+
+// 通过模板创建节点
+window.createNodeFromTemplate = function(templateName, position) {
+    try {
+        // 获取模板
+        const template = window.getNodeTemplate ? window.getNodeTemplate(templateName) : null;
+        
+        if (!template) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Template ' + templateName + ' not found', 'error');
+            }
+            return null;
+        }
+        
+        // 使用模板创建节点
+        return window.createNode(template.type || 'Node', position, template);
+    } catch (error) {
+        console.error('Neo4j Editor: Error creating node from template:', error);
+        if (typeof window.showToast === 'function') {
+            window.showToast('Failed to create node from template: ' + error.message, 'error');
+        }
+        return null;
+    }
+};
+
+// 检查节点code唯一性
+window.checkNodeCodeUnique = function(code, excludeNodeId = null) {
+    return window.isNodeCodeUnique ? window.isNodeCodeUnique(code, excludeNodeId) : true;
+};
+
+// 更新节点code
+window.updateNodeCode = function(nodeId, newCode) {
+    try {
+        if (!newCode) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Code cannot be empty', 'error');
+            }
+            return false;
+        }
+        
+        // 检查唯一性
+        if (window.isNodeCodeUnique && !window.isNodeCodeUnique(newCode, nodeId)) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Code ' + newCode + ' already exists', 'error');
+            }
+            return false;
+        }
+        
+        // 更新节点code
+        const sharedData = window.sharedGraphData || { nodes: [] };
+        const node = sharedData.nodes.find(n => n && n.data && n.data.id === nodeId);
+        
+        if (node && node.data) {
+            node.data.code = newCode;
+            
+            // 同步视图
+            if (typeof window.syncGraphData === 'function') {
+                window.syncGraphData();
+            }
+            
+            if (typeof window.showToast === 'function') {
+                window.showToast('Node Code updated', 'success');
+            }
+            
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Neo4j Editor: Error updating node code:', error);
+        if (typeof window.showToast === 'function') {
+            window.showToast('Failed to update node Code: ' + error.message, 'error');
+        }
+        return false;
+    }
+};
+
+// 批量添加节点属性
+window.batchAddNodeProperties = function(nodeIds, properties) {
+    try {
+        if (!Array.isArray(nodeIds) || nodeIds.length === 0 || !properties || typeof properties !== 'object') {
+            return false;
+        }
+        
+        const sharedData = window.sharedGraphData || { nodes: [] };
+        let updatedCount = 0;
+        
+        // 更新每个节点的属性
+        nodeIds.forEach(nodeId => {
+            const node = sharedData.nodes.find(n => n && n.data && n.data.id === nodeId);
+            if (node && node.data) {
+                if (!node.data.properties) {
+                    node.data.properties = {};
+                }
+                
+                // 合并属性
+                Object.assign(node.data.properties, properties);
+                updatedCount++;
+            }
+        });
+        
+        if (updatedCount > 0) {
+            // 同步视图
+            if (typeof window.syncGraphData === 'function') {
+                window.syncGraphData();
+            }
+            
+            if (typeof window.showToast === 'function') {
+                window.showToast('Updated properties for ' + updatedCount + ' nodes', 'success');
+            }
+        }
+        
+        return updatedCount > 0;
+    } catch (error) {
+        console.error('Neo4j Editor: Error batch adding node properties:', error);
+        if (typeof window.showToast === 'function') {
+            window.showToast('Failed to batch add properties: ' + error.message, 'error');
+        }
+        return false;
     }
 };
 
@@ -1349,12 +1542,21 @@ window.createRelationship = function(sourceNode, targetNode, relationshipType) {
         const sourceId = typeof sourceNode.id === 'function' ? sourceNode.id() : sourceNode.id;
         const targetId = typeof targetNode.id === 'function' ? targetNode.id() : targetNode.id;
         
+        // 检查是否为同一节点
+        if (sourceId === targetId) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Cannot create relationship to self', 'error');
+            }
+            return null;
+        }
+        
         // 检查是否已经存在相同的关系
         const sharedData = window.sharedGraphData || { nodes: [], edges: [] };
         const existingEdge = sharedData.edges.find(edge => 
             edge && edge.data && 
             edge.data.source === sourceId && 
-            edge.data.target === targetId
+            edge.data.target === targetId &&
+            edge.data.type === relationshipType
         );
         
         if (existingEdge) {
@@ -1364,9 +1566,16 @@ window.createRelationship = function(sourceNode, targetNode, relationshipType) {
             return null;
         }
         
+        // 检查关系是否已被删除（对于RELATES_TO类型�?        const relType = relationshipType || window.selectedRelationshipType || 'RELATES_TO';
+        if (relType === 'RELATES_TO' && window.isEdgeDeleted && window.isEdgeDeleted(sourceId, targetId, relType)) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('This relationship was previously deleted, clear deletion records to recreate', 'warning');
+            }
+            return null;
+        }
+        
         // 生成唯一ID
         const edgeId = `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const relType = relationshipType || window.selectedRelationshipType || 'RELATES_TO';
         const style = window.relationshipTypeStyles[relType] || { 'line-color': '#00BCD4', 'target-arrow-color': '#00BCD4' };
         
         // 创建关系数据
@@ -1377,13 +1586,21 @@ window.createRelationship = function(sourceNode, targetNode, relationshipType) {
             label: relType,
             type: relType,
             'line-color': style['line-color'],
-            'target-arrow-color': style['target-arrow-color']
+            'target-arrow-color': style['target-arrow-color'],
+            'source-arrow-shape': relType === 'RELATES_TO' ? 'triangle' : 'none',
+            'target-arrow-shape': 'triangle',
+            properties: {}
         };
         
         // 创建关系对象
         const newEdge = {
             group: 'edges',
-            data: relData
+            data: relData,
+            style: {
+                'line-style': relType === 'RELATES_TO' ? 'dashed' : 'solid',
+                'width': 2.5,
+                'opacity': 0.8
+            }
         };
         
         // 添加到共享数据
@@ -1396,16 +1613,137 @@ window.createRelationship = function(sourceNode, targetNode, relationshipType) {
         
         // 显示提示
         if (typeof window.showToast === 'function') {
-            window.showToast(`Relationship ${relType} created`);
+            window.showToast('Relationship ' + relType + ' created');
         }
         
-        return { data: () => relData }; // 返回一个包含data方法的对象，模拟cytoscape边
+        return { data: function() { return relData; } }; // 返回一个包含data方法的对象，模拟cytoscape对象
     } catch (error) {
         console.error('Neo4j Editor: Error creating relationship:', error);
         if (typeof window.showToast === 'function') {
-            window.showToast('Failed to create relationship');
+            window.showToast('Failed to create relationship: ' + error.message);
         }
         return null;
+    }
+};
+
+// 创建父子关系（CHILD_OF）
+window.createChildOfRelationship = function(childNode, parentNode) {
+    try {
+        // 检查循环引用
+        if (window.wouldCreateCycle && window.wouldCreateCycle(childNode, parentNode)) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Cannot create circular reference relationship', 'error');
+            }
+            return null;
+        }
+        
+        // 创建CHILD_OF关系
+        const relationship = window.createRelationship(childNode, parentNode, 'CHILD_OF');
+        
+        if (relationship) {
+            // 为子节点更新层级
+            const sharedData = window.sharedGraphData || { nodes: [] };
+            const childId = typeof childNode.id === 'function' ? childNode.id() : childNode.id;
+            const parentId = typeof parentNode.id === 'function' ? parentNode.id() : parentNode.id;
+            
+            const child = sharedData.nodes.find(n => n && n.data && n.data.id === childId);
+            const parent = sharedData.nodes.find(n => n && n.data && n.data.id === parentId);
+            
+            if (child && parent) {
+                // 更新子节点层级
+                child.data.level = (parent.data.level || 1) + 1;
+                
+                // 为新添加的子节点创建与其他兄弟节点的RELATES_TO关系
+                window.createSiblingRelationshipsForNewChild(childId, parentId);
+            }
+        }
+        
+        return relationship;
+    } catch (error) {
+        console.error('Neo4j Editor: Error creating CHILD_OF relationship:', error);
+        if (typeof window.showToast === 'function') {
+            window.showToast('Failed to create parent-child relationship: ' + error.message, 'error');
+        }
+        return null;
+    }
+};
+
+// 检查添加关系是否会导致循环引用
+window.wouldCreateCycle = function(childNode, parentNode) {
+    try {
+        const childId = typeof childNode.id === 'function' ? childNode.id() : childNode.id;
+        const parentId = typeof parentNode.id === 'function' ? parentNode.id() : parentNode.id;
+        
+        // 递归检查是否存在循环路径
+        function hasPathToChild(nodeId, visited = new Set()) {
+            if (visited.has(nodeId)) return false;
+            visited.add(nodeId);
+            
+            // 如果找到了子节点，则存在循环
+            if (nodeId === childId) return true;
+            
+            // 获取所有父节点（通过CHILD_OF关系）
+            const sharedData = window.sharedGraphData || { edges: [] };
+            const parentEdges = sharedData.edges.filter(edge => 
+                edge && edge.data && 
+                edge.data.target === nodeId && 
+                edge.data.type === 'CHILD_OF'
+            );
+            
+            // 递归检查每个父节点
+            for (const edge of parentEdges) {
+                if (hasPathToChild(edge.data.source, new Set(visited))) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        return hasPathToChild(parentId);
+    } catch (error) {
+        console.error('Neo4j Editor: Error checking for cycle:', error);
+        return false;
+    }
+};
+
+// 为新添加的子节点创建与其他兄弟节点的关系
+window.createSiblingRelationshipsForNewChild = function(childId, parentId) {
+    try {
+        const sharedData = window.sharedGraphData || { nodes: [], edges: [] };
+        
+        // 查找所有兄弟节�?        const siblingNodes = [];
+        sharedData.edges.forEach(edge => {
+            if (edge && edge.data && 
+                edge.data.type === 'CHILD_OF' && 
+                edge.data.target === parentId && 
+                edge.data.source !== childId) {
+                
+                const sibling = sharedData.nodes.find(n => n && n.data && n.data.id === edge.data.source);
+                if (sibling) {
+                    siblingNodes.push(sibling);
+                }
+            }
+        });
+        
+        // 为每个兄弟节点创建RELATES_TO关系
+        const newChild = sharedData.nodes.find(n => n && n.data && n.data.id === childId);
+        if (newChild) {
+            siblingNodes.forEach(sibling => {
+                // 检查关系是否已存在或已被删除
+                const isDeleted = window.isEdgeDeleted ? 
+                    window.isEdgeDeleted(childId, sibling.data.id, 'RELATES_TO') || 
+                    window.isEdgeDeleted(sibling.data.id, childId, 'RELATES_TO') : 
+                    false;
+                
+                if (!isDeleted) {
+                    // 创建双向关系
+                    window.createRelationship(newChild, sibling, 'RELATES_TO');
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Neo4j Editor: Error creating sibling relationships:', error);
     }
 };
 
@@ -1416,10 +1754,22 @@ window.createRelationship = function(sourceNode, targetNode, relationshipType) {
  */
 function handleNodeCreationTap(instance, event) {
     try {
+        console.log('Neo4j Editor: Node creation tap event triggered');
         const position = event.position || { x: 0, y: 0 };
-        window.createNode(null, position);
+        console.log('Neo4j Editor: Creating node at position:', position);
+        
+        // 正确调用createNode函数 - 第一个参数是标签，第二个参数是position对象
+        const nodeId = window.createNode('Node', position);
+        
+        console.log('Neo4j Editor: Node creation result:', nodeId);
+        
+        // 如果需要切换回默认模式
+        if (nodeId && instance && instance.modeManager) {
+            instance.modeManager.activateMode('default');
+        }
     } catch (error) {
         console.error('Neo4j Editor: Error handling node creation tap:', error);
+        console.error('Neo4j Editor: Error stack:', error.stack);
     }
 }
 
@@ -1442,8 +1792,55 @@ function handleRelationshipCreationTap(instance, target, event) {
                 window.showToast('Source node selected. Click target node to create relationship.');
             }
         } else if (window.sourceNode !== target) {
-            // 如果已经有源节点，并且不是同一个节点，则创建关系
-            window.createRelationship(window.sourceNode, target, null);
+            // 如果已经有源节点，并且不是同一个节点，则创建关系            
+            // 正确提取节点ID，特别处理Cytoscape集合对象
+            let sourceId = null;
+            let targetId = null;
+            
+            try {
+                // 处理Cytoscape集合对象
+                if (window.sourceNode) {
+                    // 检查是否是Cytoscape集合对象
+                    if (window.sourceNode.length !== undefined && typeof window.sourceNode.data === 'function') {
+                        // 获取第一个元素并调用data方法
+                        sourceId = window.sourceNode.data('id');
+                        console.log('Neo4j Editor: Source ID from Cytoscape collection:', sourceId);
+                    } else if (window.sourceNode.data?.id) {
+                        sourceId = window.sourceNode.data.id;
+                    } else if (window.sourceNode.id) {
+                        sourceId = window.sourceNode.id;
+                    }
+                }
+                
+                if (target) {
+                    // 检查是否是Cytoscape集合对象
+                    if (target.length !== undefined && typeof target.data === 'function') {
+                        // 获取第一个元素并调用data方法
+                        targetId = target.data('id');
+                        console.log('Neo4j Editor: Target ID from Cytoscape collection:', targetId);
+                    } else if (target.data?.id) {
+                        targetId = target.data.id;
+                    } else if (target.id) {
+                        targetId = target.id;
+                    }
+                }
+                
+                // 安全验证
+                if (!sourceId || !targetId) {
+                    throw new Error('无法提取有效的节点ID (sourceId: ' + sourceId + ', targetId: ' + targetId + ')');
+                }
+                
+                console.log('Neo4j Editor: Creating relationship with extracted IDs:', sourceId, targetId);
+                
+                // 使用提取的ID创建关系
+                window.createRelationship(sourceId, targetId, null);
+            } catch (err) {
+                console.error('Neo4j Editor: Error extracting node IDs:', err);
+                // 显示错误提示
+                if (typeof window.showToast === 'function') {
+                    window.showToast('提取节点ID时出错 ' + err.message, 'error');
+                }
+            }
             
             // 重置源节点
             if (window.sourceNode && typeof window.sourceNode.removeClass === 'function') {
@@ -1465,25 +1862,7 @@ function handleRelationshipCreationTap(instance, target, event) {
     }
 }
 
-/**
- * 显示编辑节点类型模态框
- * @param {string} typeName - 要编辑的节点类型名称
- */
-window.showEditNodeTypeModal = function(typeName) {
-    const type = window.nodeTypeStyles[typeName];
-    if (!type) return;
-    
-    document.getElementById('edit-node-type-name').value = typeName;
-    document.getElementById('edit-node-type-icon').value = type.icon || 'fa-circle';
-    document.getElementById('edit-node-type-color').value = type['background-color'] || '#2196F3';
-    
-    // 保存旧名称，用于更新
-    document.getElementById('edit-node-type-modal').dataset.oldName = typeName;
-    
-    // 显示模态框
-    document.getElementById('edit-node-type-modal').classList.remove('hidden');
-};
-
+// 编辑节点类型模态框功能已移至nodeTypeManager.js中实�?
 /**
  * 显示编辑关系类型模态框
  * @param {string} typeName - 要编辑的关系类型名称
@@ -1502,49 +1881,7 @@ window.showEditRelationshipTypeModal = function(typeName) {
     document.getElementById('edit-relationship-type-modal').classList.remove('hidden');
 };
 
-/**
- * 编辑节点类型
- */
-window.editNodeType = function() {
-    const oldName = document.getElementById('edit-node-type-modal').dataset.oldName;
-    const newName = document.getElementById('edit-node-type-name').value;
-    const icon = document.getElementById('edit-node-type-icon').value;
-    const color = document.getElementById('edit-node-type-color').value;
-    
-    if (!newName) {
-        showToast('Name is required');
-        return;
-    }
-    
-    // 检查是否已存在（除了自身）
-    if (newName !== oldName && window.nodeTypeStyles[newName]) {
-        showToast(`Node type ${newName} already exists`);
-        return;
-    }
-    
-    // 更新样式
-    if (newName !== oldName) {
-        // 如果名称改变，删除旧的添加新的
-        delete window.nodeTypeStyles[oldName];
-    }
-    window.nodeTypeStyles[newName] = {
-        'background-color': color,
-        'icon': icon
-    };
-    
-    // 保存到localStorage
-    window.saveNodeTypeStyles();
-    
-    // 重新初始化类型按钮
-    window.initializeTypeButtons();
-    
-    // 关闭模态框
-    document.getElementById('edit-node-type-modal').classList.add('hidden');
-    
-    // Show toast
-    showToast(`Node type ${oldName} updated to ${newName}`);
-};
-
+// 编辑节点类型功能已移至nodeTypeManager.js中实�?
 /**
  * 编辑关系类型
  */
@@ -1554,20 +1891,19 @@ window.editRelationshipType = function() {
     const color = document.getElementById('edit-relationship-type-color').value;
     
     if (!newName) {
-        showToast('Name is required');
+        window.showToast('Name is required');
         return;
     }
     
     // 检查是否已存在（除了自身）
     if (newName !== oldName && window.relationshipTypeStyles[newName]) {
-        showToast(`Relationship type ${newName} already exists`);
+        window.showToast('Relationship type ' + newName + ' already exists');
         return;
     }
     
     // 更新样式
     if (newName !== oldName) {
-        // 如果名称改变，删除旧的添加新的
-        delete window.relationshipTypeStyles[oldName];
+        // 如果名称改变，删除旧的添加新�?        delete window.relationshipTypeStyles[oldName];
     }
     window.relationshipTypeStyles[newName] = {
         'line-color': color,
@@ -1577,57 +1913,24 @@ window.editRelationshipType = function() {
     // 保存到localStorage
     window.saveRelationshipTypeStyles();
     
-    // 重新初始化类型按钮
-    window.initializeTypeButtons();
+    // 重新初始化类型按�?    window.initializeTypeButtons();
     
     // 关闭模态框
     document.getElementById('edit-relationship-type-modal').classList.add('hidden');
     
     // Show toast
-    showToast(`Relationship type ${oldName} updated to ${newName}`);
+    window.showToast('Relationship type ' + oldName + ' updated to ' + newName);
 };
 
-/**
- * 删除关系类型
- * @param {string} name - 要删除的关系类型名称
- */
-window.deleteRelationshipType = function(name) {
-    if (Object.keys(window.relationshipTypeStyles).length <= 1) {
-        showToast('Cannot delete the last relationship type');
-        return;
-    }
-    
-    // 不允许删除同层关系类型
-    if (name === window.siblingRelationshipType) {
-        showToast(`Cannot delete sibling relationship type "${name}"`);
-        return;
-    }
-    
-    // 确认删除
-    if (!confirm(`Are you sure you want to delete relationship type "${name}"?`)) {
-        return;
-    }
-    
-    // 从对象中删除
-    delete window.relationshipTypeStyles[name];
-    
-    // 保存到localStorage
-    window.saveRelationshipTypeStyles();
-    
-    // 重新初始化类型按钮
-    window.initializeTypeButtons();
-    
-    // 显示提示
-    showToast(`Relationship type ${name} deleted`);
-};
-
+// deleteRelationshipType函数已在nodeTypeManager.js中实现，这里不再重复定义
+// 避免函数冲突导致的问�?
 // Delete selected elements
 window.deleteElements = function(elements) {
     console.log('Neo4j Editor: deleteElements函数被调用');
     
     // 检查elements参数
     console.log('Neo4j Editor: elements参数类型:', typeof elements);
-    console.log('Neo4j Editor: elements是否有length属性:', elements && elements.length !== undefined);
+    console.log('Neo4j Editor: elements是否有length属性', elements && elements.length !== undefined);
     console.log('Neo4j Editor: elements数量:', elements && elements.length !== undefined ? elements.length : '未知');
     
     if (!elements) {
@@ -1727,20 +2030,20 @@ window.deleteElements = function(elements) {
                     });
                 }
             } catch (syncError) {
-                console.error('Neo4j Editor: 同步双视图失败:', syncError);
+                console.error('Neo4j Editor: 同步双视图失�?', syncError);
             }
         }
         
         // Show toast
-        if (typeof showToast === 'function') {
-            showToast(`Deleted ${elementCount} elements`);
+        if (typeof window.showToast === 'function') {
+            window.showToast('Deleted ' + elementCount + ' elements');
             console.log('Neo4j Editor: 显示删除成功提示');
         } else {
-            console.log(`Neo4j Editor: 删除了 ${elementCount} 个元素`);
+            console.log(`Neo4j Editor: 删除�?${elementCount} 个元素`);
         }
         
     } catch (error) {
-        console.error('Neo4j Editor: deleteElements执行过程中发生错误:', error);
+        console.error('Neo4j Editor: deleteElements执行过程中发生错�?', error);
         console.error('Neo4j Editor: 错误详情:', error.stack);
     }
 };
@@ -1765,7 +2068,7 @@ window.clearAllElements = function() {
     }
     
     // Show toast
-    showToast('All elements cleared');
+    window.showToast('All elements cleared');
 };
 
 /**
@@ -1793,10 +2096,9 @@ window.clearGraph = function() {
 /**
  * 导出图数据为JSON文件
  * @param {Object} options - 导出选项
- * @param {string} options.format - 导出格式 ('json' 或 'cytoscape')
+ * @param {string} options.format - 导出格式 ('json' 或'cytoscape')
  * @param {string} options.filename - 自定义文件名
- * @param {boolean} options.includeProperties - 是否包含节点和边的所有属性
- * @returns {Promise<boolean>} 是否导出成功
+ * @param {boolean} options.includeProperties - 是否包含节点和边的所有属性 * @returns {Promise<boolean>} 是否导出成功
  */
 window.exportGraphData = async function(options = {}) {
     console.log('exportGraphData called with options:', options);
@@ -1804,8 +2106,7 @@ window.exportGraphData = async function(options = {}) {
     try {
         // 验证和规范化选项
         const format = options.format || 'json';
-        const includeProperties = options.includeProperties !== false; // 默认包含所有属性
-        
+        const includeProperties = options.includeProperties !== false; // 默认包含所有属性        
         let dataToExport;
         let fileExtension = '.json';
         
@@ -1884,7 +2185,7 @@ window.exportGraphData = async function(options = {}) {
         }
         
         // 清理
-        setTimeout(() => {
+        setTimeout(function() {
             if (document.body.contains(a)) {
                 document.body.removeChild(a);
             }
@@ -1894,16 +2195,16 @@ window.exportGraphData = async function(options = {}) {
         
         // 显示成功消息
         if (typeof window.showToast === 'function') {
-            window.showToast(`图数据已成功导出为 ${filename}`, 'success');
+            window.showToast('图数据已成功导出为' + filename, 'success');
         }
         
         return true;
     } catch (error) {
-        console.error('Neo4j Editor: 导出图数据错误:', error);
+        console.error('Neo4j Editor: 导出图数据错误', error);
         
         // 显示错误消息
         if (typeof window.showToast === 'function') {
-            window.showToast(`导出图数据失败: ${error.message || '未知错误'}`, 'error');
+            window.showToast('导出图数据失败 ' + (error.message || '未知错误'), 'error');
         }
         
         return false;
@@ -1935,47 +2236,51 @@ window.createSiblingRelationships = function() {
     });
     
     // 为每个层级中的节点创建同级关系
-    Object.entries(nodesByLevel).forEach(([level, nodes]) => {
-        console.log(`Neo4j Editor: Processing level ${level} with ${nodes.length} nodes`);
+    for (var level in nodesByLevel) {
+        if (nodesByLevel.hasOwnProperty(level)) {
+            var nodes = nodesByLevel[level];
+            console.log(`Neo4j Editor: Processing level ${level} with ${nodes.length} nodes`);
         
-        // 对于每个节点，与同层的其他节点创建双向连接
-        for (let i = 0; i < nodes.length; i++) {
-            for (let j = i + 1; j < nodes.length; j++) {
-                const node1 = nodes[i];
-                const node2 = nodes[j];
-                
-                // 检查是否已经存在这种关系
-                const existingEdge = targetCy.edges(`[source="${node1.id()}"][target="${node2.id()}"][type="${siblingType}"]`);
-                const existingEdgeReverse = targetCy.edges(`[source="${node2.id()}"][target="${node1.id()}"][type="${siblingType}"]`);
-                
-                if (existingEdge.length === 0 && existingEdgeReverse.length === 0) {
-                    // 创建双向关系
-                    const edgeId = `sibling_${node1.id()}_${node2.id()}`;
-                    targetCy.add({
-                        group: 'edges',
-                        data: {
-                            id: edgeId,
-                            source: node1.id(),
-                            target: node2.id(),
-                            type: siblingType,
-                            label: siblingType,
-                            'line-color': '#00BCD4',
-                            'target-arrow-color': '#00BCD4',
-                            'source-arrow-color': '#00BCD4',
-                            'source-arrow-shape': 'triangle',
-                            'target-arrow-shape': 'triangle',
-                            'curve-style': 'bezier',
-                            'width': 2.5,
-                            'line-style': 'solid'
-                        }
-                    });
+            // 对于每个节点，与同层的其他节点创建双向连接
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const node1 = nodes[i];
+                    const node2 = nodes[j];
                     
-                    console.log(`Neo4j Editor: Created sibling relationship between ${node1.id()} and ${node2.id()}`);
+                    // 检查是否已经存在这种关系
+                    const existingEdge = targetCy.edges(`[source="${node1.id()}"][target="${node2.id()}"][type="${siblingType}"]`);
+                    const existingEdgeReverse = targetCy.edges(`[source="${node2.id()}"][target="${node1.id()}"][type="${siblingType}"]`);
+                    
+                    if (existingEdge.length === 0 && existingEdgeReverse.length === 0) {
+                        // 创建双向关系
+                        const edgeId = `sibling_${node1.id()}_${node2.id()}`;
+                        targetCy.add({
+                            group: 'edges',
+                            data: {
+                                id: edgeId,
+                                source: node1.id(),
+                                target: node2.id(),
+                                type: siblingType,
+                                label: siblingType,
+                                'line-color': '#00BCD4',
+                                'target-arrow-color': '#00BCD4',
+                                'source-arrow-color': '#00BCD4',
+                                'source-arrow-shape': 'triangle',
+                                'target-arrow-shape': 'triangle',
+                                'curve-style': 'bezier',
+                                'width': 2.5,
+                                'line-style': 'solid'
+                            }
+                        });
+                        
+                        console.log(`Neo4j Editor: Created sibling relationship between ${node1.id()} and ${node2.id()}`);
+                    }
                 }
             }
         }
-    });
+    }
 };
+
 
 
 /**
@@ -1995,19 +2300,21 @@ window.exportAsCypher = async function() {
             const label = node.data.label || 'Node';
             const properties = node.data.properties || {};
             
-            // 构建属性字符串
-            const props = Object.entries(properties)
-                .map(([key, value]) => {
+            // 构建属性字符串 - 兼容旧浏览器的方�?            var propsArray = [];
+            for (var propKey in properties) {
+                if (properties.hasOwnProperty(propKey)) {
+                    var propValue = properties[propKey];
                     // 处理字符串值需要加引号
-                    if (typeof value === 'string') {
-                        return `${key}: "${value.replace(/"/g, '\"')}"`;
-                    } else if (value === null || value === undefined) {
-                        return `${key}: null`;
+                    if (typeof propValue === 'string') {
+                        propsArray.push(propKey + ': "' + propValue.replace(/"/g, '\\"') + '"');
+                    } else if (propValue === null || propValue === undefined) {
+                        propsArray.push(propKey + ': null');
                     } else {
-                        return `${key}: ${JSON.stringify(value)}`;
+                        propsArray.push(propKey + ': ' + JSON.stringify(propValue));
                     }
-                })
-                .join(', ');
+                }
+            }
+            const props = propsArray.join(', ');
             
             const nodeStatement = `CREATE (n:${label} {id: "${id}"${props ? ', ' + props : ''}})`;
             cypherStatements.push(nodeStatement);
@@ -2023,28 +2330,29 @@ window.exportAsCypher = async function() {
             const label = edge.data.label || 'RELATES_TO';
             const properties = edge.data.properties || {};
             
-            // 构建属性字符串
-            const props = Object.entries(properties)
-                .map(([key, value]) => {
-                    if (typeof value === 'string') {
-                        return `${key}: "${value.replace(/"/g, '\"')}"`;
-                    } else if (value === null || value === undefined) {
-                        return `${key}: null`;
+            // 构建属性字符串 - 兼容旧浏览器的方�?            var propsArray = [];
+            for (var propKey in properties) {
+                if (properties.hasOwnProperty(propKey)) {
+                    var propValue = properties[propKey];
+                    // 处理字符串值需要加引号
+                    if (typeof propValue === 'string') {
+                        propsArray.push(propKey + ': "' + propValue.replace(/"/g, '\\"') + '"');
+                    } else if (propValue === null || propValue === undefined) {
+                        propsArray.push(propKey + ': null');
                     } else {
-                        return `${key}: ${JSON.stringify(value)}`;
+                        propsArray.push(propKey + ': ' + JSON.stringify(propValue));
                     }
-                })
-                .join(', ');
+                }
+            }
+            const props = propsArray.join(', ');
             
             const edgeStatement = `MATCH (a {id: "${source}"}), (b {id: "${target}"}) CREATE (a)-[r:${label} ${props ? '{ ' + props + ' }' : ''}]->(b)`;
             cypherStatements.push(edgeStatement);
         });
         
-        // 合并所有语句
-        const cypherContent = cypherStatements.join('\n\n');
+        // 合并所有语�?        const cypherContent = cypherStatements.join('\n\n');
         
-        // 创建Blob和下载链接
-        const blob = new Blob([cypherContent], { type: 'text/plain' });
+        // 创建Blob和下载链�?        const blob = new Blob([cypherContent], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -2055,7 +2363,7 @@ window.exportAsCypher = async function() {
         a.click();
         
         // 清理
-        setTimeout(() => {
+        setTimeout(function() {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }, 100);
@@ -2068,7 +2376,7 @@ window.exportAsCypher = async function() {
     } catch (error) {
         console.error('Neo4j Editor: 导出Cypher查询错误:', error);
         if (typeof window.showToast === 'function') {
-            window.showToast(`导出Cypher查询失败: ${error.message}`, 'error');
+            window.showToast('导出Cypher查询失败: ' + error.message, 'error');
         }
         return false;
     }

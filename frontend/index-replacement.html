@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j Editor</title>
+    
+    <!-- 核心工具函数 -->
+    <script src="./js/utils.js?v=5"></script>
+    
+    <!-- 核心UI和功能模块 -->
+    <script src="./js/uiManager.js?v=5"></script>
+    <script src="./js/apiManager.js?v=5"></script>
+    
+    <!-- 其他必要模块 -->
+    <script src="./js/tooltipManager.js?v=5"></script>
+    <script src="./js/nodeTypeManager.js?v=5"></script>
+    <script src="./js/relationshipTypeManager.js?v=5"></script>
+    <script src="./js/notificationManager.js?v=5"></script>
+    
+    <!-- 基本样式 -->
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Neo4j Editor</h1>
+        </header>
+        
+        <main>
+            <div id="toast-container"></div>
+            <p>Neo4j Editor - Reconstructed version</p>
+        </main>
+    </div>
+    
+    <script>
+        // 基本初始化脚本
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Neo4j Editor initialized');
+            
+            // 测试UI功能
+            if (window.uiManager && typeof window.uiManager.showToast === 'function') {
+                window.uiManager.showToast('Neo4j Editor loaded successfully', 'success');
+            }
+        });
+    </script>
+</body>
+</html>

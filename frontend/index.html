@@ -8,19 +8,24 @@
 
     
     <!-- 核心工具函数 -->
-    <script src="./js/utils.js"></script>
+    <script src="./js/utils.js?v=3"></script>
     
     <!-- 新的管理器模块 -->
-    <script src="./js/tooltipManager.js"></script>
-    <script src="./js/searchManager.js"></script>
-    <script src="./js/apiManager.js"></script>
+    <script src="./js/tooltipManager.js?v=3"></script>
+    <script src="./js/searchManager.js?v=3"></script>
+    <script src="./js/apiManager.js?v=3"></script>
     
     <!-- 外部库引用 -->
-    <script src="./tailwindcss.min.js"></script>
+    <script src="./tailwindcss.min.js?v=3"></script>
     <link href="./font-awesome.min.css" rel="stylesheet">
-    <script src="./cytoscape.min.js"></script>
-    <script src="./d3.min.js"></script>
-    <script src="./axios.min.js"></script>
+    <script src="./cytoscape.min.js?v=3"></script>
+    <script src="./d3.min.js?v=3"></script>
+    <script src="./axios.min.js?v=3"></script>
+    
+    <!-- 核心UI和功能模块 -->
+    <script src="./js/uiManager.js?v=3"></script>
+    <script src="./js/nodeTypeManager.js?v=3"></script>
+    <script src="./js/relationshipTypeManager.js?v=3"></script>
     
     <!-- Tailwind配置 -->
     <script>
@@ -33,12 +38,12 @@
                         accent: '#2196F3',
                         dark: '#121212',
                         'dark-light': '#333333',
-                        'light-blue': '#64B5F6',
+                        'light-blue': '#64B5F6'
                     },
                     fontFamily: {
-                          sans: ['Inter', 'system-ui', 'sans-serif'],
-                      }
-                  }
+                      sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
             }
         }
     </script>
@@ -163,6 +168,19 @@
                 </div>
             </div>
             
+            <!-- Label Filter Panel -->
+            <div class="panel border-t border-gray-800">
+                <div class="panel-header">
+                    <span>Label Filters</span>
+                </div>
+                <div class="panel-content">
+                    <div id="label-filter-container" class="space-y-2">
+                        <!-- 标签过滤控件将在这里动态生成 -->
+                        <p class="text-xs text-gray-400">加载标签中...</p>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Tools Panel -->
             <div class="panel border-t border-gray-800 mt-auto">
                 <div class="panel-header">
@@ -175,8 +193,11 @@
                     <button id="clear-btn" class="w-full flex items-center justify-center p-2 text-yellow-500 hover:bg-yellow-900 hover:bg-opacity-20 rounded mb-2">
                         <i class="fa fa-eraser mr-2"></i> Clear All
                     </button>
-                    <button id="export-btn" class="w-full flex items-center justify-center p-2 text-green-500 hover:bg-green-900 hover:bg-opacity-20 rounded">
-                        <i class="fa fa-download mr-2"></i> Export
+                    <button id="export-btn" class="w-full flex items-center justify-center p-2 text-green-500 hover:bg-green-900 hover:bg-opacity-20 rounded mb-2">
+                        <i class="fa fa-download mr-2"></i> Export Graph
+                    </button>
+                    <button id="export-neo4j-btn" class="w-full flex items-center justify-center p-2 text-blue-500 hover:bg-blue-900 hover:bg-opacity-20 rounded">
+                        <i class="fa fa-database mr-2"></i> Export Neo4j
                     </button>
                 </div>
             </div>
@@ -185,7 +206,7 @@
         <!-- Center Canvas - Split View -->
         <section class="flex-1 flex flex-col bg-dark">
             <!-- View Switcher and Mode Controls -->
-            <div class="bg-dark-light py-2 px-4 border-b border-gray-800 flex justify-between items-center">
+            <div id="toolbar" class="bg-dark-light py-2 px-4 border-b border-gray-800 flex justify-between items-center">
                 <div class="flex space-x-2">
                     <button id="split-view-btn" class="bg-accent hover:bg-blue-600 text-white py-1 px-3 rounded text-sm active">
                         <i class="fa fa-columns mr-1"></i> Split View
@@ -361,7 +382,7 @@
     <!-- Modals -->
     <!-- Connect to Neo4j Modal -->
     <div id="connect-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-dark-light rounded-lg shadow-xl w-full max-w-md">
+        <div style="display: block !important; background-color: #1a1a1a !important; padding: 20px !important; border-radius: 8px !important; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important; z-index: 10000 !important; max-width: 500px !important; width: 90% !important; max-height: 90vh !important; overflow-y: auto !important; color: white !important;">
             <div class="p-4 border-b border-gray-800 flex justify-between items-center">
                 <h3 class="font-bold text-lg">Connect to Neo4j</h3>
                 <button id="close-connect-modal" class="text-gray-400 hover:text-white" title="Close modal">
@@ -397,7 +418,7 @@
     <div id="add-node-type-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-dark-light rounded-lg shadow-xl w-full max-w-md">
             <div class="p-4 border-b border-gray-800 flex justify-between items-center">
-                <h3 class="font-bold text-lg">Add Node Type</h3>
+                <h3 class="font-bold text-lg">Add Node type</h3>
                 <button id="close-add-node-type-modal" class="text-gray-400 hover:text-white" title="Close modal">
                     <i class="fa fa-times"></i>
                 </button>
@@ -424,6 +445,20 @@
                     <label class="form-label" for="new-node-type-color">Color</label>
                     <input type="color" id="new-node-type-color" class="form-input" value="#2196F3">
                 </div>
+                
+                <!-- Properties Section -->
+                <div class="mt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="form-label">Properties</label>
+                        <button id="add-new-node-type-property-btn" class="text-xs bg-accent hover:bg-blue-600 text-white py-1 px-2 rounded">
+                            <i class="fa fa-plus mr-1"></i> Add Property
+                        </button>
+                    </div>
+                    <div id="new-node-type-properties-container" class="space-y-2">
+                        <!-- Properties will be added here dynamically -->
+                    </div>
+                </div>
+                
                 <div class="mt-6 flex justify-end">
                     <button id="cancel-add-node-type-btn" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded mr-2">
                         Cancel
@@ -440,7 +475,7 @@
     <div id="add-relationship-type-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-dark-light rounded-lg shadow-xl w-full max-w-md">
             <div class="p-4 border-b border-gray-800 flex justify-between items-center">
-                <h3 class="font-bold text-lg">Add Relationship Type</h3>
+                <h3 class="font-bold text-lg">Add Relationship type</h3>
                 <button id="close-add-relationship-type-modal" class="text-gray-400 hover:text-white" title="Close modal">
                     <i class="fa fa-times"></i>
                 </button>
@@ -454,6 +489,20 @@
                     <label class="form-label" for="new-relationship-type-color">Color</label>
                     <input type="color" id="new-relationship-type-color" class="form-input" value="#FF9800">
                 </div>
+                
+                <!-- Properties Section -->
+                <div class="mt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="form-label">Properties</label>
+                        <button id="add-new-relationship-type-property-btn" class="text-xs bg-accent hover:bg-blue-600 text-white py-1 px-2 rounded">
+                            <i class="fa fa-plus mr-1"></i> Add Property
+                        </button>
+                    </div>
+                    <div id="new-relationship-type-properties-container" class="space-y-2">
+                        <!-- Properties will be added here dynamically -->
+                    </div>
+                </div>
+                
                 <div class="mt-6 flex justify-end">
                     <button id="cancel-add-relationship-type-btn" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded mr-2">
                         Cancel
@@ -467,7 +516,7 @@
     </div>
 
     <!-- Add Property Modal -->
-    <div id="add-property-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="add-property-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-dark-light rounded-lg shadow-xl w-full max-w-md">
             <div class="p-4 border-b border-gray-800 flex justify-between items-center">
                 <h3 class="font-bold text-lg">Add Property</h3>
@@ -509,6 +558,63 @@
         <span id="toast-message"></span>
     </div>
 
+    <!-- Edit Node Type Modal -->
+    <div id="edit-node-type-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-dark-light rounded-lg shadow-xl w-full max-w-md">
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                <h3 class="font-bold text-lg">Edit Node type</h3>
+                <button id="close-edit-node-type-modal" class="text-gray-400 hover:text-white" title="Close modal">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <div class="form-group">
+                    <label class="form-label" for="edit-node-type-name">Name</label>
+                    <input type="text" id="edit-node-type-name" class="form-input" placeholder="Enter node type name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-node-type-icon">Icon</label>
+                    <select id="edit-node-type-icon" class="form-input">
+                        <option value="fa-circle">Circle</option>
+                        <option value="fa-square">Square</option>
+                        <option value="fa-triangle">Triangle</option>
+                        <option value="fa-star">Star</option>
+                        <option value="fa-user">User</option>
+                        <option value="fa-film">Film</option>
+                        <option value="fa-book">Book</option>
+                        <option value="fa-building">Building</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-node-type-color">Color</label>
+                    <input type="color" id="edit-node-type-color" class="form-input" value="#2196F3">
+                </div>
+                
+                <!-- Properties Section -->
+                <div class="mt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="form-label">Properties</label>
+                        <button id="add-node-type-property-btn" class="text-xs bg-accent hover:bg-blue-600 text-white py-1 px-2 rounded">
+                            <i class="fa fa-plus mr-1"></i> Add Property
+                        </button>
+                    </div>
+                    <div id="node-type-properties-container" class="space-y-2">
+                        <!-- Properties will be added here dynamically -->
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex justify-end">
+                    <button id="cancel-edit-node-type-btn" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded mr-2">
+                        Cancel
+                    </button>
+                    <button id="confirm-edit-node-type-btn" class="bg-accent hover:bg-blue-600 text-white py-2 px-4 rounded">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 所有JavaScript功能已完全模块化，代码已迁移到相应JS模块(如graphEditor.js) -->
     <!-- 节点类型管理功能已移至 nodeTypeManager.js -->
         
@@ -542,16 +648,185 @@
 
 
 <!-- JavaScript 模块引入 -->
-    <script src="./js/cytoscape.js"></script>
-    <script src="./js/modeManager.js"></script>
-    <script src="./js/neo4jConnection.js"></script>
-    <script src="./js/graphDataManager.js"></script>
-    <script src="./js/nodeTypeManager.js"></script>
-    <script src="./js/graphEditor.js"></script>
-    <script src="./js/contextMenuManager.js"></script>
-    <script src="./js/uiManager.js"></script>
-    <script src="./js/toolPanelManager.js"></script>
-    <script src="./js/viewManager.js"></script>
-    <script src="./js/init.js"></script>
+    <!-- 性能和通知模块 -->
+    <script src="./js/performanceMonitor.js?v=3"></script>
+    <script src="./js/notificationManager.js?v=3"></script>
+    
+    <!-- 视图和样式模块 -->
+    <script src="./js/styleManager.js?v=3"></script>
+    <script src="./js/viewModeManager.js?v=3"></script>
+    
+    <!-- 数据管理模块 -->
+    <script src="./js/dataManager.js?v=3"></script>
+    
+    <!-- 现有核心模块 -->
+    <script src="./js/cytoscape.js?v=3"></script>
+    <script src="./js/modeManager.js?v=3"></script>
+    <script src="./js/neo4jConnection.js?v=3"></script>
+    <script src="./js/graphDataManager.js?v=3"></script>
+    <script src="./js/graphEditor.js?v=3"></script>
+    <script src="./js/contextMenuManager.js?v=3"></script>
+        <script src="./js/toolPanelManager.js?v=3"></script>
+        
+        <!-- 主视图管理器 -->
+        <script src="./js/viewManager.js?v=3"></script>
+        
+        <script src="./js/init.js?v=3"></script>
+        <script>
+              // 统一的测试函数，使用uiManager的标准方法
+              window.testModal = function(modalId) {
+                  modalId = modalId || 'add-node-type-modal';
+                  console.log('===== 模态框测试: ' + modalId + ' =====');
+                  
+                  // 使用try-catch确保安全执行
+                  try {
+                      if (window.uiManager && typeof window.uiManager.showModal === 'function') {
+                          window.uiManager.showModal(modalId);
+                          console.log('✅ 已通过uiManager显示模态框');
+                      } else {
+                          // 备用方案
+                          const modal = document.getElementById(modalId);
+                          if (modal) {
+                              modal.classList.remove('hidden');
+                              modal.classList.add('flex');
+                              console.log('⚠️  已使用备用方法显示模态框');
+                          } else {
+                              console.error('❌ uiManager不可用且模态框元素未找到');
+                          }
+                      }
+                  } catch (error) {
+                      console.error('Error showing modal:', error);
+                  }
+              };
+              
+              // 测试消息提示功能
+              window.testToast = function() {
+                  console.log('===== 测试消息提示 =====');
+                  try {
+                      if (window.uiManager && typeof window.uiManager.showToast === 'function') {
+                          window.uiManager.showToast('测试消息', 'success');
+                          console.log('✅ 已通过uiManager显示消息提示');
+                      } else if (typeof window.showToast === 'function') {
+                          window.showToast('测试消息', 'success');
+                          console.log('✅ 已通过直接调用显示消息提示');
+                      } else {
+                          console.error('❌ 未找到可用的消息提示函数');
+                      }
+                  } catch (error) {
+                      console.error('Error showing toast:', error);
+                  }
+              };
+              
+              // 强制显示模态框的函数 (别名，调用testModal)
+              window.forceShowModal = function(modalId) {
+                  modalId = modalId || 'add-node-type-modal';
+                  window.testModal(modalId);
+              };
+            
+            // 页面加载完成后初始化
+            window.addEventListener('load', function() {
+                console.log('===== Neo4j Editor 加载完成 =====');
+                console.log('🔧 提示: 请在控制台输入 window.testModal() 来测试模态框显示');
+                console.log('🔧 提示: 请在控制台输入 window.testToast() 来测试消息提示显示');
+                
+                console.log('===== Neo4j Editor 加载完成 =====');
+                console.log('🔧 提示: 请在控制台输入 window.testModal() 来测试模态框显示');
+                console.log('🔧 提示: 请在控制台输入 window.testToast() 来测试消息提示显示');
+            });
+        </script>
+    
+    <!-- 模块加载验证脚本 (确保在其他脚本之后加载) -->
+    <script src="./js/verifyModules.js?v=3"></script>
+    
+    <!-- Neo4j语句导出功能 -->
+    <script>
+        // 为Export Neo4j按钮添加事件监听器
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Neo4j导出功能初始化...');
+            
+            const exportNeo4jBtn = document.getElementById('export-neo4j-btn');
+            if (exportNeo4jBtn) {
+                exportNeo4jBtn.addEventListener('click', function() {
+                    // 使用try-catch包装整个导出逻辑
+                    try {
+                        try {
+                            console.log('开始导出Neo4j语句...');
+                              
+                            // 检查exportGraphAsNeo4jStatement函数是否存在
+                            if (typeof window.exportGraphAsNeo4jStatement === 'function') {
+                                // 调用导出函数
+                                let exportResult;
+                                try {
+                                    exportResult = window.exportGraphAsNeo4jStatement();
+                                } catch (err) {
+                                    console.error('Error in exportGraphAsNeo4jStatement:', err);
+                                    throw new Error('导出函数执行失败');
+                                }
+                                 
+                                if (exportResult && exportResult.success) {
+                                    // 创建Blob和下载链接
+                                    try {
+                                        const blob = new Blob([exportResult.statement], { type: 'text/plain' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `neo4j-statement-${Date.now()}.cypher`;
+                                         
+                                        // 触发下载
+                                        document.body.appendChild(a);
+                                        a.click();
+                                         
+                                        // 清理
+                                        setTimeout(() => {
+                                            try {
+                                                document.body.removeChild(a);
+                                                URL.revokeObjectURL(url);
+                                            } catch (cleanupErr) {
+                                                console.error('Cleanup error:', cleanupErr);
+                                            }
+                                        }, 100);
+                                         
+                                        // 显示成功提示
+                                        try {
+                                            if (window.uiManager && typeof window.uiManager.showToast === 'function') {
+                                                window.uiManager.showToast('Successfully exported Neo4j statement, ' + exportResult.nodeCount + ' nodes and ' + exportResult.edgeCount + ' relationships exported', 'success');
+                                            } else if (typeof window.showToast === 'function') {
+                                                window.showToast('Successfully exported Neo4j statement, ' + exportResult.nodeCount + ' nodes and ' + exportResult.edgeCount + ' relationships exported', 'success');
+                                            }
+                                        } catch (err) {
+                                            console.error('Failed to show toast:', err);
+                                        }
+                                    } catch (createBlobErr) {
+                                        console.error('Error creating blob:', createBlobErr);
+                                        throw new Error('创建下载文件失败');
+                                    }
+                                } else {
+                                    throw new Error(exportResult ? exportResult.error : '导出失败');
+                                }
+                            } else {
+                                throw new Error('Neo4j export function not loaded');
+                            }
+                        } catch (error) {
+                            console.error('Neo4j语句导出失败:', error);
+                            try {
+                                var errorMessage = 'Failed to export Neo4j statement: ' + (error && error.message ? error.message : 'Unknown error');
+                                if (window.uiManager && typeof window.uiManager.showToast === 'function') {
+                                    window.uiManager.showToast(errorMessage, 'error');
+                                } else if (typeof window.showToast === 'function') {
+                                    window.showToast(errorMessage, 'error');
+                                }
+                            } catch (err) {
+                                console.error('Failed to show toast:', err);
+                            }
+                        }
+                    } catch (outerError) {
+                        console.error('Critical error in export function:', outerError);
+                    }
+                });
+            }
+            
+            console.log('Neo4j导出功能已初始化完成');
+        });
+    </script>
 </body>
 </html>

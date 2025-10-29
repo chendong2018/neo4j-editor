@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Minimal Test</title>
+    <script src="./js/utils.js?v=3"></script>
+    <script src="./js/uiManager.js?v=3"></script>
+    <script src="./js/apiManager.js?v=3"></script>
+</head>
+<body>
+    <h1>Minimal Test Page</h1>
+    <div id="toast-container"></div>
+    <script>
+        // 简单初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Minimal page loaded');
+            // 避免直接使用showToast，先检查是否存在
+            if (typeof window.uiManager !== 'undefined' && typeof window.uiManager.showToast === 'function') {
+                console.log('UI Manager is available');
+                try {
+                    window.uiManager.showToast('Hello from minimal page', 'success');
+                } catch (e) {
+                    console.error('Error showing toast:', e);
+                }
+            } else {
+                console.warn('UI Manager not found or showToast not available');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j Editor - Simple Test</title>
+    <link rel="stylesheet" href="font-awesome.min.css">
+</head>
+<body>
+    <div class="container mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4">Neo4j Editor - Simple Test</h1>
+        <p>Testing script loading and basic functionality</p>
+        
+        <!-- Toast Notification -->
+        <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-dark-light text-white px-4 py-2 rounded-lg shadow-lg z-50 hidden">
+            <span id="toast-message"></span>
+        </div>
+        
+        <!-- Test buttons -->
+        <button id="test-toast-btn" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded">Test Toast</button>
+    </div>
+
+    <!-- 核心脚本 -->
+    <script src="./js/utils.js?v=3"></script>
+    <script src="./js/uiManager.js?v=3"></script>
+    <script src="./js/nodeTypeManager.js?v=3"></script>
+    
+    <!-- 简单的测试脚本 -->
+    <script>
+        // 等待所有脚本加载完成
+        window.addEventListener('load', function() {
+            console.log('All scripts loaded');
+            
+            // 测试toast功能
+            document.getElementById('test-toast-btn').addEventListener('click', function() {
+                console.log('Test toast button clicked');
+                if (window.uiManager && typeof window.uiManager.showToast === 'function') {
+                    window.uiManager.showToast('Test message from simplified page', 'success');
+                    console.log('Toast shown through uiManager');
+                } else if (typeof window.showToast === 'function') {
+                    window.showToast('Test message from simplified page', 'success');
+                    console.log('Toast shown directly');
+                } else {
+                    console.error('No toast function available');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

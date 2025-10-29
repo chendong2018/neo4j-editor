@@ -27,16 +27,16 @@ function updateElementCounts() {
         const networkStats = document.getElementById('network-stats');
         
         if (treeStats) {
-            treeStats.textContent = `树视图: ${treeNodesCount}个节点, ${treeEdgesCount}条边`;
+            treeStats.textContent = `Tree View: ${treeNodesCount} nodes, ${treeEdgesCount} edges`;
         }
         
         if (networkStats) {
-            networkStats.textContent = `网络图视图: ${networkNodesCount}个节点, ${networkEdgesCount}条边`;
+            networkStats.textContent = `Network View: ${networkNodesCount} nodes, ${networkEdgesCount} edges`;
         }
         
-        console.log('Neo4j Editor: 元素计数已更新');
+        console.log('Neo4j Editor: Element counts updated');
     } catch (err) {
-        console.error('Neo4j Editor: 更新元素计数时出错:', err);
+        console.error('Neo4j Editor: Error updating element counts:', err);
     }
 }
 
@@ -45,7 +45,7 @@ function updateElementCounts() {
  * @param {string} mode - 视图模式: split, tree, network
  */
 function switchViewMode(mode) {
-    console.log(`Neo4j Editor: 切换视图模式到 ${mode}`);
+    console.log(`Neo4j Editor: Switching view mode to ${mode}`);
     
     // 更新当前模式
     window.currentViewMode = mode;
@@ -55,7 +55,7 @@ function switchViewMode(mode) {
     const networkContainer = document.getElementById('cy-network-container');
     
     if (!treeContainer || !networkContainer) {
-        console.error('Neo4j Editor: 视图容器不存在');
+        console.error('Neo4j Editor: View container not found');
         return;
     }
     
@@ -115,7 +115,7 @@ function switchViewMode(mode) {
         if (window.cy) window.cy.resize();
     }, 100);
     
-    console.log(`Neo4j Editor: 视图模式切换完成 - ${mode}`);
+    console.log(`Neo4j Editor: View mode switch completed - ${mode}`);
 }
 
 /**
@@ -123,7 +123,7 @@ function switchViewMode(mode) {
  * @param {Object} graphData - 包含节点和边的数据对象
  */
 function syncGraphData(graphData) {
-    console.log('Neo4j Editor: 开始同步图数据到双视图');
+    console.log('Neo4j Editor: Starting to sync graph data to dual views');
     
     try {
         // 确保共享数据存在
@@ -141,7 +141,7 @@ function syncGraphData(graphData) {
         
         // 处理树视图
         if (window.cyTree) {
-            console.log('Neo4j Editor: 同步数据到树视图');
+            console.log('Neo4j Editor: Syncing data to tree view');
             
             // 清空当前元素
             window.cyTree.elements().remove();
@@ -175,13 +175,13 @@ function syncGraphData(graphData) {
                     numIter: 1000
                 }).run();
             } catch (layoutErr) {
-                console.error('Neo4j Editor: 树视图布局应用失败:', layoutErr);
+                console.error('Neo4j Editor: Failed to apply tree view layout:', layoutErr);
             }
         }
         
         // 处理网络图视图
         if (window.cyNetwork) {
-            console.log('Neo4j Editor: 同步数据到网络图视图');
+            console.log('Neo4j Editor: Syncing data to network view');
             
             // 清空当前元素
             window.cyNetwork.elements().remove();
@@ -213,18 +213,18 @@ function syncGraphData(graphData) {
                     randomize: false
                 }).run();
             } catch (layoutErr) {
-                console.error('Neo4j Editor: 网络图视图布局应用失败:', layoutErr);
+                console.error('Neo4j Editor: Failed to apply network view layout:', layoutErr);
             }
         }
         
         // 更新元素计数
         updateElementCounts();
         
-        console.log('Neo4j Editor: 图数据同步完成');
+        console.log('Neo4j Editor: Graph data sync completed');
         
     } catch (err) {
-        console.error('Neo4j Editor: 同步图数据时出错:', err);
-        showToast(`同步视图数据失败: ${err.message}`, 'error');
+        console.error('Neo4j Editor: Error syncing graph data:', err);
+        window.showToast('Failed to sync view data: ' + err.message, 'error');
     }
 }
 
@@ -235,7 +235,7 @@ function syncGraphData(graphData) {
 function createAllSiblingRelationships(cy) {
     if (!cy) return;
     
-    console.log('Neo4j Editor: 开始创建同级关系');
+    console.log('Neo4j Editor: Starting to create sibling relationships');
     
     try {
         // 按层级分组节点
@@ -271,7 +271,7 @@ function createAllSiblingRelationships(cy) {
                                 source: node1.id(),
                                 target: node2.id(),
                                 type: 'SIBLING_OF',
-                                label: '同级'
+                                label: 'SIBLING'
                             }
                         });
                     }
@@ -279,10 +279,10 @@ function createAllSiblingRelationships(cy) {
             }
         });
         
-        console.log('Neo4j Editor: 同级关系创建完成');
+        console.log('Neo4j Editor: Sibling relationships creation completed');
         
     } catch (err) {
-        console.error('Neo4j Editor: 创建同级关系时出错:', err);
+        console.error('Neo4j Editor: Error creating sibling relationships:', err);
     }
 }
 
@@ -291,12 +291,12 @@ function createAllSiblingRelationships(cy) {
  * @param {Object} mainCy - 主Cytoscape实例
  */
 function initializeDualViews(mainCy) {
-    console.log('Neo4j Editor: 初始化双视图系统');
+    console.log('Neo4j Editor: Initializing dual view system');
     
     try {
         // 验证Cytoscape是否已加载
         if (typeof cytoscape !== 'function') {
-            console.error('Neo4j Editor: Cytoscape.js 未加载');
+            console.error('Neo4j Editor: Cytoscape.js not loaded');
             return false;
         }
         
@@ -305,7 +305,7 @@ function initializeDualViews(mainCy) {
         const networkContainer = document.getElementById('cy-network');
         
         if (!treeContainer || !networkContainer) {
-            console.error('Neo4j Editor: 视图容器元素不存在');
+            console.error('Neo4j Editor: View container elements not found');
             return false;
         }
         
@@ -409,9 +409,9 @@ function initializeDualViews(mainCy) {
                         numIter: 1000
                     }
                 });
-                console.log('Neo4j Editor: 树视图实例创建成功');
+                console.log('Neo4j Editor: Tree view instance created successfully');
             } catch (err) {
-                console.error('Neo4j Editor: 创建树视图实例失败:', err);
+                console.error('Neo4j Editor: Failed to create tree view instance:', err);
             }
         }
         
@@ -430,14 +430,14 @@ function initializeDualViews(mainCy) {
                         randomize: false
                     }
                 });
-                console.log('Neo4j Editor: 网络图视图实例创建成功');
+                console.log('Neo4j Editor: Network view instance created successfully');
             } catch (err) {
-                console.error('Neo4j Editor: 创建网络图视图实例失败:', err);
+                console.error('Neo4j Editor: Failed to create network view instance:', err);
             }
         }
         
         // 验证全局变量
-        console.log('Neo4j Editor: 双视图初始化状态:', {
+        console.log('Neo4j Editor: Dual view initialization status:', {
             cyTree: !!window.cyTree,
             cyNetwork: !!window.cyNetwork
         });
@@ -464,11 +464,11 @@ function initializeDualViews(mainCy) {
         // 设置默认视图模式
         switchViewMode(window.currentViewMode);
         
-        console.log('Neo4j Editor: 双视图初始化完成');
+        console.log('Neo4j Editor: Dual view initialization completed');
         return true;
         
     } catch (err) {
-        console.error('Neo4j Editor: 初始化双视图时出错:', err);
+        console.error('Neo4j Editor: Error initializing dual views:', err);
         return false;
     }
 }
@@ -477,15 +477,15 @@ function initializeDualViews(mainCy) {
  * 设置视图事件监听器
  */
 function setupViewEventListeners() {
-    console.log('Neo4j Editor: 设置视图事件监听器');
+    console.log('Neo4j Editor: Setting up view event listeners');
     
     // 重新安装所有点击监听器的全局函数
     window.reinstallAllTapListeners = function() {
-        console.log('Neo4j Editor: 重新安装所有点击监听器');
+        console.log('Neo4j Editor: Reinstalling all click listeners');
         
         // 特殊处理节点模式
         const isNodeMode = window.currentMode === 'node';
-        console.log('Neo4j Editor: 当前是否为节点模式:', isNodeMode);
+        console.log('Neo4j Editor: Is node mode active:', isNodeMode);
         
         // 辅助函数：为单个视图安装监听器
         const installTapListeners = function(cyInstance, viewName) {
@@ -497,14 +497,14 @@ function setupViewEventListeners() {
                 
                 // 添加新的监听器
                 cyInstance.on('tap', function(evt) {
-                    console.log(`Neo4j Editor: ${viewName} 视图点击事件`);
+                    console.log(`Neo4j Editor: ${viewName} view click event`);
                     
                     // 根据不同模式处理
                     if (window.currentMode === 'node') {
                         // 节点创建模式
                         if (!evt.target || evt.target === cyInstance) {
                             // 点击背景，创建节点
-                            console.log(`Neo4j Editor: 在${viewName}视图背景创建节点`);
+                            console.log(`Neo4j Editor: Creating node in ${viewName} view background`);
                             
                             // 使用全局createNode函数
                             if (window.createNode) {
@@ -513,15 +513,15 @@ function setupViewEventListeners() {
                         }
                     } else if (window.currentMode === 'relationship') {
                         // 关系创建模式
-                        console.log(`Neo4j Editor: ${viewName}视图关系创建模式`);
+                        console.log(`Neo4j Editor: ${viewName} view relationship creation mode`);
                         // 这里可以添加关系创建逻辑
                     }
                 });
                 
-                console.log(`Neo4j Editor: ${viewName}视图监听器安装成功`);
+                console.log(`Neo4j Editor: ${viewName} view listeners installed successfully`);
                 
             } catch (err) {
-                console.error(`Neo4j Editor: 安装${viewName}视图监听器失败:`, err);
+                console.error(`Neo4j Editor: Failed to install ${viewName} view listeners:`, err);
             }
         };
         
@@ -553,7 +553,7 @@ function setupViewEventListeners() {
         setCursorStyle('Network', isNodeMode);
         setCursorStyle('Main', isNodeMode);
         
-        console.log('Neo4j Editor: 全局监听器重新安装完成');
+        console.log('Neo4j Editor: Global listeners reinstallation completed');
     };
     
     // 视图切换按钮事件监听
@@ -563,26 +563,26 @@ function setupViewEventListeners() {
     
     if (splitBtn) {
         splitBtn.addEventListener('click', () => {
-            console.log('Neo4j Editor: 分割视图按钮点击');
+            console.log('Neo4j Editor: Split view button clicked');
             switchViewMode('split');
         });
     }
     
     if (treeBtn) {
         treeBtn.addEventListener('click', () => {
-            console.log('Neo4j Editor: 树视图按钮点击');
+            console.log('Neo4j Editor: Tree view button clicked');
             switchViewMode('tree');
         });
     }
     
     if (networkBtn) {
         networkBtn.addEventListener('click', () => {
-            console.log('Neo4j Editor: 网络图视图按钮点击');
+            console.log('Neo4j Editor: Network view button clicked');
             switchViewMode('network');
         });
     }
     
-    console.log('Neo4j Editor: 视图事件监听器设置完成');
+    console.log('Neo4j Editor: View event listeners setup completed');
 }
 
 /**
@@ -594,7 +594,7 @@ function overrideCreateNodeForDualViews() {
     
     // 覆盖函数
     window.createNode = function(cyInstance, position, viewType = 'main') {
-        console.log(`Neo4j Editor: 双视图节点创建 - 视图类型: ${viewType}`);
+        console.log(`Neo4j Editor: Dual view node creation - View type: ${viewType}`);
         
         try {
             // 调用原始函数创建节点
@@ -603,7 +603,7 @@ function overrideCreateNodeForDualViews() {
                 null;
             
             if (!nodeData) {
-                console.error('Neo4j Editor: 原始节点创建失败');
+                console.error('Neo4j Editor: Original node creation failed');
                 return null;
             }
             
@@ -612,7 +612,7 @@ function overrideCreateNodeForDualViews() {
                 group: 'nodes',
                 data: {
                     id: nodeData.data?.id || `node_${Date.now()}`,
-                    label: nodeData.data?.label || '节点',
+                    label: nodeData.data?.label || 'Node',
                     type: nodeData.data?.type || 'default',
                     tags: nodeData.data?.tags || []
                 },
@@ -649,13 +649,13 @@ function overrideCreateNodeForDualViews() {
             syncGraphData(window.sharedGraphData);
             
             // 显示成功消息
-            showToast(`节点已创建并同步到${viewType === 'both' ? '所有' : viewType}视图`, 'success');
+            window.showToast('Node created and synced to ' + (viewType === 'both' ? 'all' : viewType) + ' views', 'success');
             
             return node;
             
         } catch (err) {
-            console.error('Neo4j Editor: 双视图节点创建失败:', err);
-            showToast(`创建节点失败: ${err.message}`, 'error');
+            console.error('Neo4j Editor: Dual view node creation failed:', err);
+            window.showToast('Failed to create node: ' + err.message, 'error');
             return null;
         }
     };
@@ -670,7 +670,7 @@ function overrideCreateRelationshipForDualViews() {
     
     // 覆盖函数
     window.createRelationship = function(sourceNode, targetNode, relationshipType = 'RELATES_TO', relationshipLabel = '') {
-        console.log('Neo4j Editor: 双视图关系创建');
+        console.log('Neo4j Editor: Dual view relationship creation');
         
         try {
             // 调用原始函数创建关系
@@ -679,7 +679,7 @@ function overrideCreateRelationshipForDualViews() {
                 null;
             
             if (!relData) {
-                console.error('Neo4j Editor: 原始关系创建失败');
+                console.error('Neo4j Editor: Original relationship creation failed');
                 return null;
             }
             
@@ -706,13 +706,13 @@ function overrideCreateRelationshipForDualViews() {
             syncGraphData(window.sharedGraphData);
             
             // 显示成功消息
-            showToast('关系已创建并同步到所有视图', 'success');
+            window.showToast('Relationship created and synced to all views', 'success');
             
             return relationship;
             
         } catch (err) {
-            console.error('Neo4j Editor: 双视图关系创建失败:', err);
-            showToast(`创建关系失败: ${err.message}`, 'error');
+            console.error('Neo4j Editor: Dual view relationship creation failed:', err);
+            window.showToast('Failed to create relationship: ' + err.message, 'error');
             return null;
         }
     };
@@ -729,4 +729,4 @@ window.viewSync = {
     overrideCreateRelationshipForDualViews: overrideCreateRelationshipForDualViews
 };
 
-console.log('Neo4j Editor: viewSync.js 模块加载完成');
+console.log('Neo4j Editor: viewSync.js module loaded');

@@ -22,16 +22,22 @@ window.setMode = function(mode) {
     resetModeButtons();
     
     // 设置活动按钮
-    const buttonMap = {
+    var buttonMap = {
         'select': 'select-mode-btn',
         'node': 'node-mode-btn',
         'relationship': 'relationship-mode-btn'
     };
     
-    const activeBtnId = buttonMap[mode];
-    const activeBtn = document.getElementById(activeBtnId);
+    var activeBtnId = buttonMap[mode];
+    var activeBtn = document.getElementById(activeBtnId);
     if (activeBtn) {
-        activeBtn.classList.add('active', 'bg-accent');
+        // 兼容classList操作
+        if (activeBtn.className.indexOf('active') === -1) {
+            activeBtn.className += ' active';
+        }
+        if (activeBtn.className.indexOf('bg-accent') === -1) {
+            activeBtn.className += ' bg-accent';
+        }
     }
     
     // 根据模式设置光标和行为
@@ -62,13 +68,18 @@ function resetModeButtons() {
         'relationship-mode-btn'
     ];
     
-    buttons.forEach(btnId => {
-        const btn = document.getElementById(btnId);
+    // 使用传统for循环替代forEach和箭头函数
+    for (var i = 0; i < buttons.length; i++) {
+        var btnId = buttons[i];
+        var btn = document.getElementById(btnId);
         if (btn) {
-            btn.classList.remove('bg-accent', 'active');
-            btn.classList.add('bg-gray-700');
+            // 兼容classList操作
+            btn.className = btn.className.replace(/\b(?:bg-accent|active)\b/g, '').trim();
+            if (btn.className.indexOf('bg-gray-700') === -1) {
+                btn.className += ' bg-gray-700';
+            }
         }
-    });
+    }
 }
 
 /**
@@ -197,28 +208,50 @@ function handleNodeCreationTap(instance, event) {
     try {
         const position = event.position || event.cyPosition;
         
-        // 获取当前选中的节点类型
-        const activeNodeTypeBtn = document.querySelector('.node-type-btn.active');
-        const nodeType = activeNodeTypeBtn ? activeNodeTypeBtn.getAttribute('data-type') : 'Generic';
+        // 优先使用window.selectedNodeType，如果没有则从UI获取当前选中的节点类型
+        let nodeType = window.selectedNodeType;
+        if (!nodeType) {
+            const activeNodeTypeBtn = document.querySelector('.node-type-btn.active');
+            nodeType = activeNodeTypeBtn ? activeNodeTypeBtn.getAttribute('data-type') : 'Generic';
+        }
         
-        // 创建新节点
+        console.log('Selected node type for creation:', nodeType);
+        
+        // 创建默认属性对象并应用节点类型的默认属性
+        const defaultProperties = {};
+        const nodeTypeConfig = window.nodeTypeStyles && window.nodeTypeStyles[nodeType];
+        if (nodeTypeConfig && nodeTypeConfig.properties) {
+          nodeTypeConfig.properties.forEach(prop => {
+            if (prop.key) {
+                // 支持value字段作为默认值
+                defaultProperties[prop.key] = prop.defaultValue !== undefined ? prop.defaultValue : (prop.value !== undefined ? prop.value : '');
+            }
+          });
+        }
+        
+        // 创建新节点，确保使用节点类型作为label和type
         const newNode = {
             group: 'nodes',
             data: {
                 id: generateId('node'),
-                label: nodeType,
-                type: nodeType
+                label: nodeType,  // 明确使用节点类型作为标签
+                type: nodeType,
+                properties: defaultProperties, // 使用默认属性
+                labels: [nodeType, 'tree', 'network'] // 添加节点类型到labels数组
             },
             position: position
         };
+        
+        console.log('Creating new node with data:', newNode.data);
         
         // 添加到所有视图
         const success = addNodeToViews(newNode);
         
         if (success) {
-            debugLog(`Created new node: ${newNode.data.id}`);
+            debugLog('Created new node: ' + newNode.data.id + ' with type: ' + nodeType);
+            window.showToast('Created node of type: ' + nodeType, 'success');
         } else {
-            showToast('Failed to add node to views', 'error');
+            window.showToast('Failed to add node to views', 'error');
         }
     } catch (error) {
         handleError('Error creating node', error);
@@ -247,14 +280,14 @@ function handleRelationshipCreationTap(instance, target, event) {
             // 高亮显示源节点
             if (typeof target.addClass === 'function') {
                 target.addClass('source-node');
-                showToast('Selected source node', 'info');
+                window.showToast('Selected source node', 'info');
             }
         } else if (window.sourceNode === nodeId) {
             // 点击同一个节点，取消选择
             window.sourceNode = null;
             if (typeof target.removeClass === 'function') {
                 target.removeClass('source-node');
-                showToast('Source node selection cleared', 'info');
+                window.showToast('Source node selection cleared', 'info');
             }
         } else {
             // 优先从window.selectedRelationshipType获取关系类型
@@ -296,8 +329,8 @@ function handleRelationshipCreationTap(instance, target, event) {
             const success = addEdgeToViews(newEdge);
             
             if (success) {
-                debugLog(`Created new edge: ${newEdge.data.id} between ${window.sourceNode} and ${nodeId}`);
-                showToast(`Created relationship ${relType}`, 'success');
+                debugLog('Created new edge: ' + newEdge.data.id + ' between ' + window.sourceNode + ' and ' + nodeId);
+                window.showToast('Created relationship ' + relType, 'success');
             }
             
             // 清除源节点
@@ -310,7 +343,7 @@ function handleRelationshipCreationTap(instance, target, event) {
     } catch (error) {
         handleError('Error creating relationship', error);
         window.sourceNode = null;
-        showToast('Failed to create relationship', 'error');
+        window.showToast('Failed to create relationship', 'error');
     }
 }
 

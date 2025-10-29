@@ -64,21 +64,21 @@ window.getBasicStyles = function() {
 window.initializeDualViews = function() {
     // 检查Cytoscape是否已加载
     if (typeof cytoscape === 'undefined') {
-        showToast('错误：Cytoscape库未加载', 'error');
+        window.showToast('错误：Cytoscape库未加载', 'error');
         return false;
     }
     
     // 获取容器元素
-    const treeContainer = document.getElementById('cy-tree');
-    const networkContainer = document.getElementById('cy-network');
+    var treeContainer = document.getElementById('cy-tree');
+    var networkContainer = document.getElementById('cy-network');
     
     if (!treeContainer || !networkContainer) {
-        showToast('错误：未找到图表容器元素', 'error');
+        window.showToast('错误：未找到图表容器元素', 'error');
         return false;
     }
     
     // 创建基础样式
-    const basicStyles = getBasicStyles();
+    var basicStyles = getBasicStyles();
     
     try {
         // 创建Tree视图实例
@@ -158,16 +158,16 @@ window.initializeDualViews = function() {
 window.createFallbackCytoscapeInstances = function() {
     // 检查基础依赖
     if (typeof cytoscape === 'undefined') {
-        showToast('错误：Cytoscape库未加载', 'error');
+        window.showToast('错误：Cytoscape库未加载', 'error');
         return false;
     }
     
-    const basicStyles = getBasicStyles();
-    const treeContainer = document.getElementById('cy-tree');
-    const networkContainer = document.getElementById('cy-network');
+    var basicStyles = getBasicStyles();
+    var treeContainer = document.getElementById('cy-tree');
+    var networkContainer = document.getElementById('cy-network');
     
     if (!treeContainer || !networkContainer) {
-        showToast('错误：未找到图表容器元素', 'error');
+        window.showToast('错误：未找到图表容器元素', 'error');
         return false;
     }
     
@@ -223,16 +223,32 @@ window.createFallbackCytoscapeInstances = function() {
  * @param {Array} nodes - 节点数组
  * @param {Array} edges - 边数组
  */
-window.syncViews = function(nodes = [], edges = []) {
+window.syncViews = function(nodes, edges) {
+    // 设置默认参数值
+    if (!nodes) nodes = [];
+    if (!edges) edges = [];
     if (window.cyTree && window.cyNetwork) {
         // 清空现有元素
         window.cyTree.remove(window.cyTree.elements());
         window.cyNetwork.remove(window.cyNetwork.elements());
         
         // 添加新元素
-        if (nodes.length > 0 || edges.length > 0) {
-            window.cyTree.add([...nodes, ...edges]);
-            window.cyNetwork.add([...nodes, ...edges]);
+            if (nodes.length > 0 || edges.length > 0) {
+                // 合并节点和边数组
+                var allElements = [];
+                for (var i = 0; i < nodes.length; i++) {
+                    allElements.push(nodes[i]);
+                }
+                for (var j = 0; j < edges.length; j++) {
+                    allElements.push(edges[j]);
+                }
+                window.cyTree.add(allElements);
+                // 创建新数组以避免引用问题
+                var allElementsCopy = [];
+                for (var k = 0; k < allElements.length; k++) {
+                    allElementsCopy.push(JSON.parse(JSON.stringify(allElements[k])));
+                }
+                window.cyNetwork.add(allElementsCopy);
             
             // 重新运行布局
             window.cyTree.layout({ name: 'breadthfirst' }).run();
@@ -240,10 +256,14 @@ window.syncViews = function(nodes = [], edges = []) {
         }
         
         // 更新共享数据
+        var selectedElement = null;
+        if (window.sharedGraphData && window.sharedGraphData.selectedElement) {
+            selectedElement = window.sharedGraphData.selectedElement;
+        }
         window.sharedGraphData = {
             nodes: nodes,
             edges: edges,
-            selectedElement: window.sharedGraphData?.selectedElement || null
+            selectedElement: selectedElement
         };
         
         // 更新元素计数
@@ -255,12 +275,12 @@ window.syncViews = function(nodes = [], edges = []) {
  * 更新界面上的元素计数
  */
 window.updateElementCounts = function() {
-    const nodeCountEl = document.getElementById('node-count');
-    const edgeCountEl = document.getElementById('edge-count');
+    var nodeCountEl = document.getElementById('node-count');
+    var edgeCountEl = document.getElementById('edge-count');
     
     if (nodeCountEl && edgeCountEl) {
-        let nodeCount = 0;
-        let edgeCount = 0;
+        var nodeCount = 0;
+        var edgeCount = 0;
         
         if (window.sharedGraphData && window.sharedGraphData.nodes && window.sharedGraphData.edges) {
             nodeCount = window.sharedGraphData.nodes.length;
@@ -270,8 +290,8 @@ window.updateElementCounts = function() {
             edgeCount = window.cyTree.edges().length;
         }
         
-        nodeCountEl.textContent = `${nodeCount} nodes`;
-        edgeCountEl.textContent = `${edgeCount} edges`;
+        nodeCountEl.textContent = nodeCount + ' nodes';
+            edgeCountEl.textContent = edgeCount + ' edges';
     }
 }
 
@@ -283,7 +303,7 @@ window.addNodeToViews = function(node) {
     if (window.cyTree && window.cyNetwork) {
         try {
             // 复制节点对象以避免引用问题
-            const nodeCopy = JSON.parse(JSON.stringify(node));
+            var nodeCopy = JSON.parse(JSON.stringify(node));
             
             window.cyTree.add(node);
             window.cyNetwork.add(nodeCopy);
@@ -327,7 +347,7 @@ function initializeEventListeners(cyTree, cyNetwork) {
     // 节点选中事件同步
     if (cyTree) {
         cyTree.on('select', 'node', function(event) {
-            const element = event.target;
+            var element = event.target;
             synchronizeSelection(element, cyTree);
             // 显示节点属性面板
             if (typeof window.selectNode === 'function') {
@@ -343,7 +363,7 @@ function initializeEventListeners(cyTree, cyNetwork) {
         
         // 边选中事件
         cyTree.on('select', 'edge', function(event) {
-            const element = event.target;
+            var element = event.target;
             synchronizeSelection(element, cyTree);
             // 显示边属性面板
             if (typeof window.selectEdge === 'function') {
@@ -360,7 +380,7 @@ function initializeEventListeners(cyTree, cyNetwork) {
     
     if (cyNetwork) {
         cyNetwork.on('select', 'node', function(event) {
-            const element = event.target;
+            var element = event.target;
             synchronizeSelection(element, cyNetwork);
             // 显示节点属性面板
             if (typeof window.selectNode === 'function') {
@@ -376,7 +396,7 @@ function initializeEventListeners(cyTree, cyNetwork) {
         
         // 边选中事件
         cyNetwork.on('select', 'edge', function(event) {
-            const element = event.target;
+            var element = event.target;
             synchronizeSelection(element, cyNetwork);
             // 显示边属性面板
             if (typeof window.selectEdge === 'function') {
@@ -396,7 +416,7 @@ function initializeEventListeners(cyTree, cyNetwork) {
  * 同步选中状态
  */
 function synchronizeSelection(element, sourceCy) {
-    const targetCy = sourceCy === window.cyTree ? window.cyNetwork : window.cyTree;
+    var targetCy = sourceCy === window.cyTree ? window.cyNetwork : window.cyTree;
     
     if (targetCy) {
         // 根据元素类型取消对应的选中
@@ -425,7 +445,7 @@ function synchronizeSelection(element, sourceCy) {
  */
 window.addEdgeToViews = function(edge) {
     if (window.cyTree && window.cyNetwork) {
-        const edgeCopy = JSON.parse(JSON.stringify(edge));
+        var edgeCopy = JSON.parse(JSON.stringify(edge));
         
         window.cyTree.add(edge);
         window.cyNetwork.add(edgeCopy);
@@ -449,18 +469,31 @@ window.addEdgeToViews = function(edge) {
 window.removeElementFromViews = function(elementId) {
     if (window.cyTree && window.cyNetwork) {
         // 删除视图中的元素
-        const treeElement = window.cyTree.getElementById(elementId);
-        const networkElement = window.cyNetwork.getElementById(elementId);
+        var treeElement = window.cyTree.getElementById(elementId);
+        var networkElement = window.cyNetwork.getElementById(elementId);
         
         if (treeElement) treeElement.remove();
         if (networkElement) networkElement.remove();
         
         // 更新共享数据
         if (window.sharedGraphData) {
-            window.sharedGraphData.nodes = window.sharedGraphData.nodes.filter(n => n.data.id !== elementId);
-            window.sharedGraphData.edges = window.sharedGraphData.edges.filter(e => 
-                e.data.id !== elementId && e.data.source !== elementId && e.data.target !== elementId
-            );
+            // 使用传统循环替代filter方法
+            var filteredNodes = [];
+            for (var i = 0; i < window.sharedGraphData.nodes.length; i++) {
+                if (window.sharedGraphData.nodes[i].data.id !== elementId) {
+                    filteredNodes.push(window.sharedGraphData.nodes[i]);
+                }
+            }
+            window.sharedGraphData.nodes = filteredNodes;
+            
+            var filteredEdges = [];
+            for (var j = 0; j < window.sharedGraphData.edges.length; j++) {
+                var edge = window.sharedGraphData.edges[j];
+                if (edge.data.id !== elementId && edge.data.source !== elementId && edge.data.target !== elementId) {
+                    filteredEdges.push(edge);
+                }
+            }
+            window.sharedGraphData.edges = filteredEdges;
         }
         
         // 更新计数
@@ -485,7 +518,7 @@ window.clearAllViews = function() {
         // 更新计数
         updateElementCounts();
         
-        showToast('所有元素已清空');
+        window.showToast('所有元素已清空');
     }
 }
 

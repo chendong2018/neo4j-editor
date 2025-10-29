@@ -3,7 +3,7 @@
  */
 
 // 工具提示配置
-const tooltipConfig = {
+var tooltipConfig = {
     offset: { x: 20, y: -20 },
     fadeInDuration: 100,
     fadeOutDuration: 100,
@@ -13,9 +13,9 @@ const tooltipConfig = {
 };
 
 // 工具提示元素引用
-let tooltipElement = null;
-let tooltipTimeoutId = null;
-let currentTarget = null;
+var tooltipElement = null;
+var tooltipTimeoutId = null;
+var currentTarget = null;
 
 /**
  * 初始化工具提示功能
@@ -93,45 +93,46 @@ window.showNodeTooltip = function(node, options = {}) {
         tooltipTimeoutId = null;
     }
     
-    const showFn = () => {
+    var showFn = function() {
         try {
             // 获取节点位置
-            const position = options.position || node.renderedPosition();
+            var position = options.position || node.renderedPosition();
             if (!position) {
                 console.warn('Tooltip Manager: 无法获取节点位置');
                 return;
             }
             
             // 获取节点数据
-            const nodeData = node.data ? node.data() : {};
-            const label = nodeData.label || '节点';
-            const nodeId = nodeData.id || 'unknown-id';
-            const nodeType = nodeData.type || 'default';
-            const properties = nodeData.properties || {};
+            var nodeData = node.data ? node.data() : {};
+            var label = nodeData.label || '节点';
+            var nodeId = nodeData.id || 'unknown-id';
+            var nodeType = nodeData.type || 'default';
+            var properties = nodeData.properties || {};
             
             // 构建工具提示内容
-            let content = `
-                <div class="tooltip-header">
-                    <div class="tooltip-label">${escapeHtml(label)}</div>
-                    <div class="tooltip-id">ID: ${escapeHtml(nodeId)}</div>
-                </div>
-                <div class="tooltip-type">类型: ${escapeHtml(nodeType)}</div>
-            `;
+            var content = 
+                '<div class="tooltip-header">\n' +
+                '    <div class="tooltip-label">' + escapeHtml(label) + '</div>\n' +
+                '    <div class="tooltip-id">ID: ' + escapeHtml(nodeId) + '</div>\n' +
+                '</div>\n' +
+                '<div class="tooltip-type">类型: ' + escapeHtml(nodeType) + '</div>\n';
             
             // 添加属性列表
             if (Object.keys(properties).length > 0) {
                 content += '<div class="tooltip-properties">';
                 content += '<div class="tooltip-section-title">属性:</div>';
                 
-                for (const [key, value] of Object.entries(properties)) {
+                var keys = Object.keys(properties);
+                for (var i = 0; i < keys.length; i++) {
+                    var key = keys[i];
+                    var value = properties[key];
                     // 格式化值
-                    const formattedValue = formatTooltipValue(value);
-                    content += `
-                        <div class="tooltip-property">
-                            <span class="tooltip-property-key">${escapeHtml(key)}:</span>
-                            <span class="tooltip-property-value">${formattedValue}</span>
-                        </div>
-                    `;
+                    var formattedValue = formatTooltipValue(value);
+                    content += 
+                            '<div class="tooltip-property">\n' +
+                            '    <span class="tooltip-property-key">' + escapeHtml(key) + ':</span>\n' +
+                            '    <span class="tooltip-property-value">' + formattedValue + '</span>\n' +
+                            '</div>\n';
                 }
                 content += '</div>';
             }
@@ -140,7 +141,9 @@ window.showNodeTooltip = function(node, options = {}) {
             tooltipElement.innerHTML = content;
             
             // 计算工具提示位置（确保在视口内）
-            const { x, y } = calculateTooltipPosition(position.x, position.y);
+            var tooltipPos = calculateTooltipPosition(position.x, position.y);
+            var x = tooltipPos.x;
+            var y = tooltipPos.y;
             
             // 设置位置
             tooltipElement.style.left = `${x}px`;
@@ -151,14 +154,14 @@ window.showNodeTooltip = function(node, options = {}) {
             tooltipElement.style.display = 'block';
             
             // 淡入效果
-            setTimeout(() => {
+            setTimeout(function() {
                 tooltipElement.style.opacity = '1';
             }, 10);
             
             // 记录当前目标
             currentTarget = node;
             
-            console.log(`Tooltip Manager: 显示节点工具提示 - ${label}`);
+            console.log('Tooltip Manager: 显示节点工具提示 - ' + label);
         } catch (error) {
             console.error('Tooltip Manager: 显示节点工具提示时发生错误:', error);
         }
@@ -179,7 +182,11 @@ window.showNodeTooltip = function(node, options = {}) {
  * @param {Object} options.position - 自定义位置
  * @param {boolean} options.delayed - 是否延迟显示
  */
-window.showEdgeTooltip = function(edge, options = {}) {
+window.showEdgeTooltip = function(edge, options) {
+    // 参数默认值处理
+    if (options === undefined) {
+        options = {};
+    }
     if (!edge || !tooltipElement) return;
     
     // 清除之前的定时器
@@ -188,49 +195,50 @@ window.showEdgeTooltip = function(edge, options = {}) {
         tooltipTimeoutId = null;
     }
     
-    const showFn = () => {
+    var showFn = function() {
         try {
             // 获取边位置（中点）
-            const position = options.position || (edge.midpoint ? edge.midpoint() : null);
+            var position = options.position || (edge.midpoint ? edge.midpoint() : null);
             if (!position) {
                 console.warn('Tooltip Manager: 无法获取边位置');
                 return;
             }
             
             // 获取边数据
-            const edgeData = edge.data ? edge.data() : {};
-            const label = edgeData.label || '关系';
-            const edgeId = edgeData.id || 'unknown-id';
-            const sourceId = edgeData.source || 'unknown-source';
-            const targetId = edgeData.target || 'unknown-target';
-            const properties = edgeData.properties || {};
+            var edgeData = edge.data ? edge.data() : {};
+            var label = edgeData.label || '关系';
+            var edgeId = edgeData.id || 'unknown-id';
+            var sourceId = edgeData.source || 'unknown-source';
+            var targetId = edgeData.target || 'unknown-target';
+            var properties = edgeData.properties || {};
             
             // 构建工具提示内容
-            let content = `
-                <div class="tooltip-header">
-                    <div class="tooltip-label">${escapeHtml(label)}</div>
-                    <div class="tooltip-id">ID: ${escapeHtml(edgeId)}</div>
-                </div>
-                <div class="tooltip-connection">
-                    <div>源: ${escapeHtml(sourceId)}</div>
-                    <div>目标: ${escapeHtml(targetId)}</div>
-                </div>
-            `;
+            var content = 
+                '<div class="tooltip-header">\n' +
+                '    <div class="tooltip-label">' + escapeHtml(label) + '</div>\n' +
+                '    <div class="tooltip-id">ID: ' + escapeHtml(edgeId) + '</div>\n' +
+                '</div>\n' +
+                '<div class="tooltip-connection">\n' +
+                '    <div>源: ' + escapeHtml(sourceId) + '</div>\n' +
+                '    <div>目标: ' + escapeHtml(targetId) + '</div>\n' +
+                '</div>\n';
             
             // 添加属性列表
             if (Object.keys(properties).length > 0) {
                 content += '<div class="tooltip-properties">';
                 content += '<div class="tooltip-section-title">属性:</div>';
                 
-                for (const [key, value] of Object.entries(properties)) {
+                var keys = Object.keys(properties);
+                for (var i = 0; i < keys.length; i++) {
+                    var key = keys[i];
+                    var value = properties[key];
                     // 格式化值
-                    const formattedValue = formatTooltipValue(value);
-                    content += `
-                        <div class="tooltip-property">
-                            <span class="tooltip-property-key">${escapeHtml(key)}:</span>
-                            <span class="tooltip-property-value">${formattedValue}</span>
-                        </div>
-                    `;
+                    var formattedValue = formatTooltipValue(value);
+                    content += 
+                        '<div class="tooltip-property">\n' +
+                        '    <span class="tooltip-property-key">' + escapeHtml(key) + ':</span>\n' +
+                        '    <span class="tooltip-property-value">' + formattedValue + '</span>\n' +
+                        '</div>\n';
                 }
                 content += '</div>';
             }
@@ -239,25 +247,25 @@ window.showEdgeTooltip = function(edge, options = {}) {
             tooltipElement.innerHTML = content;
             
             // 计算工具提示位置（确保在视口内）
-            const { x, y } = calculateTooltipPosition(position.x, position.y);
+            var tooltipPos = calculateTooltipPosition(position.x, position.y);
             
             // 设置位置
-            tooltipElement.style.left = `${x}px`;
-            tooltipElement.style.top = `${y}px`;
+            tooltipElement.style.left = tooltipPos.x + 'px';
+            tooltipElement.style.top = tooltipPos.y + 'px';
             
             // 显示工具提示
             tooltipElement.style.opacity = '0';
             tooltipElement.style.display = 'block';
             
             // 淡入效果
-            setTimeout(() => {
+            setTimeout(function() {
                 tooltipElement.style.opacity = '1';
             }, 10);
             
             // 记录当前目标
             currentTarget = edge;
             
-            console.log(`Tooltip Manager: 显示边工具提示 - ${label}`);
+            console.log('Tooltip Manager: 显示边工具提示 - ' + label);
         } catch (error) {
             console.error('Tooltip Manager: 显示边工具提示时发生错误:', error);
         }
@@ -275,7 +283,11 @@ window.showEdgeTooltip = function(edge, options = {}) {
  * 隐藏工具提示
  * @param {boolean} immediate - 是否立即隐藏（无动画）
  */
-window.hideTooltip = function(immediate = false) {
+window.hideTooltip = function(immediate) {
+    // 参数默认值处理
+    if (immediate === undefined) {
+        immediate = false;
+    }
     if (!tooltipElement || tooltipElement.style.display === 'none') return;
     
     // 清除定时器
@@ -295,10 +307,10 @@ window.hideTooltip = function(immediate = false) {
     // 淡出效果
     tooltipElement.style.opacity = '0';
     
-    setTimeout(() => {
+    setTimeout(function() {
         tooltipElement.style.display = 'none';
         currentTarget = null;
-        console.log('Tooltip Manager: 隐藏工具提示');
+        console.log('Tooltip Manager: 工具提示已淡出');
     }, tooltipConfig.fadeOutDuration);
 };
 
@@ -309,15 +321,15 @@ window.hideTooltip = function(immediate = false) {
  * @returns {Object} 调整后的位置 {x, y}
  */
 function calculateTooltipPosition(targetX, targetY) {
-    const tooltipRect = tooltipElement.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
+    var tooltipRect = tooltipElement.getBoundingClientRect();
+    var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    var scrollX = window.scrollX || document.documentElement.scrollLeft;
+    var scrollY = window.scrollY || document.documentElement.scrollTop;
     
     // 计算基础位置
-    let x = targetX + tooltipConfig.offset.x;
-    let y = targetY + tooltipConfig.offset.y;
+    var x = targetX + tooltipConfig.offset.x;
+    var y = targetY + tooltipConfig.offset.y;
     
     // 调整X位置，避免超出右边界
     if (x + tooltipRect.width - scrollX > viewportWidth) {
@@ -331,7 +343,7 @@ function calculateTooltipPosition(targetX, targetY) {
         y = targetY - tooltipRect.height - 10; // 显示在上方
     }
     
-    return { x, y };
+    return { x: x, y: y };
 }
 
 /**
@@ -345,12 +357,12 @@ function formatTooltipValue(value) {
     
     // 处理布尔值
     if (typeof value === 'boolean') {
-        return `<span class="tooltip-boolean">${value.toString()}</span>`;
+        return '<span class="tooltip-boolean">' + value.toString() + '</span>';
     }
     
     // 处理数字
     if (typeof value === 'number') {
-        return `<span class="tooltip-number">${value}</span>`;
+        return '<span class="tooltip-number">' + value + '</span>';
     }
     
     // 处理数组
@@ -361,38 +373,52 @@ function formatTooltipValue(value) {
         
         // 对于短数组，直接显示
         if (value.length <= 3) {
-            const items = value.map(item => escapeHtml(String(item))).join(', ');
-            return `<span class="tooltip-array">[ ${items} ]</span>`;
+            var items = [];
+            for (var i = 0; i < value.length; i++) {
+                items.push(escapeHtml(String(value[i])));
+            }
+            var itemsStr = items.join(', ');
+            return '<span class="tooltip-array">[ ' + itemsStr + ' ]</span>';
         }
         
         // 对于长数组，显示前两个和长度
-        const firstItems = value.slice(0, 2).map(item => escapeHtml(String(item))).join(', ');
-        return `<span class="tooltip-array">[ ${firstItems}, ... ] (${value.length} 项)</span>`;
+        var firstItems = [];
+        for (var j = 0; j < Math.min(2, value.length); j++) {
+            firstItems.push(escapeHtml(String(value[j])));
+        }
+        var firstItemsStr = firstItems.join(', ');
+        return '<span class="tooltip-array">[ ' + firstItemsStr + ', ... ] (' + value.length + ' 项)</span>';
     }
     
     // 处理对象
     if (typeof value === 'object') {
         try {
-            const objStr = JSON.stringify(value);
+            var objStr = JSON.stringify(value);
             // 对于小对象，直接显示
             if (objStr.length < 50) {
-                return `<span class="tooltip-object">${escapeHtml(objStr)}</span>`;
+                return '<span class="tooltip-object">' + escapeHtml(objStr) + '</span>';
             }
             // 对于大对象，只显示类型
-            return `<span class="tooltip-object">Object { ${Object.keys(value).length} 个属性 }</span>`;
-        } catch {
-            return `<span class="tooltip-object">Object</span>`;
+            var keysCount = 0;
+            for (var key in value) {
+                if (value.hasOwnProperty(key)) {
+                    keysCount++;
+                }
+            }
+            return '<span class="tooltip-object">Object { ' + keysCount + ' 个属性 }</span>';
+        } catch (e) {
+            return '<span class="tooltip-object">Object</span>';
         }
     }
     
     // 处理字符串
-    const strValue = String(value);
+    var strValue = String(value);
     // 对于长字符串，截断显示
     if (strValue.length > 50) {
-        return `<span class="tooltip-string">"${escapeHtml(strValue.slice(0, 50))}..."</span>`;
+        return '<span class="tooltip-string">"' + escapeHtml(strValue.substring(0, 50)) + '..."</span>';
     }
     
-    return `<span class="tooltip-string">"${escapeHtml(strValue)}"</span>`;
+    return '<span class="tooltip-string">"' + escapeHtml(strValue) + '"</span>';
 }
 
 /**
@@ -401,14 +427,14 @@ function formatTooltipValue(value) {
  * @returns {string} 转义后的文本
  */
 function escapeHtml(text) {
-    const map = {
+    var map = {
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
         '"': '&quot;',
         "'": '&#039;'
     };
-    return String(text).replace(/[&<>"']/g, m => map[m]);
+    return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
 }
 
 /**
@@ -422,7 +448,9 @@ window.enableTooltips = function(cy) {
     
     // 节点悬停事件
     cy.on('mouseover', 'node', function(evt) {
-        window.showNodeTooltip(evt.target, { delayed: true });
+        // 手动创建选项对象
+        var options = { delayed: true };
+        window.showNodeTooltip(evt.target, options);
     });
     
     cy.on('mouseout', 'node', function(evt) {
@@ -434,7 +462,9 @@ window.enableTooltips = function(cy) {
     
     // 边悬停事件
     cy.on('mouseover', 'edge', function(evt) {
-        window.showEdgeTooltip(evt.target, { delayed: true });
+        // 手动创建选项对象
+        var options = { delayed: true };
+        window.showEdgeTooltip(evt.target, options);
     });
     
     cy.on('mouseout', 'edge', function(evt) {
@@ -445,16 +475,28 @@ window.enableTooltips = function(cy) {
     });
     
     // 工具提示悬停事件（避免鼠标移到工具提示上时隐藏）
-    tooltipElement.addEventListener('mouseover', function() {
-        if (tooltipTimeoutId) {
-            clearTimeout(tooltipTimeoutId);
-            tooltipTimeoutId = null;
-        }
-    });
+    // 使用传统的事件监听方式
+    tooltipElement.attachEvent ? 
+        tooltipElement.attachEvent('onmouseover', function() {
+            if (tooltipTimeoutId) {
+                clearTimeout(tooltipTimeoutId);
+                tooltipTimeoutId = null;
+            }
+        }) : 
+        tooltipElement.addEventListener('mouseover', function() {
+            if (tooltipTimeoutId) {
+                clearTimeout(tooltipTimeoutId);
+                tooltipTimeoutId = null;
+            }
+        });
     
-    tooltipElement.addEventListener('mouseout', function() {
-        window.hideTooltip();
-    });
+    tooltipElement.attachEvent ? 
+        tooltipElement.attachEvent('onmouseout', function() {
+            window.hideTooltip();
+        }) : 
+        tooltipElement.addEventListener('mouseout', function() {
+            window.hideTooltip();
+        });
 };
 
 /**
@@ -476,17 +518,17 @@ window.showCustomTooltip = function(content, position) {
         tooltipElement.innerHTML = content;
         
         // 计算位置
-        const { x, y } = calculateTooltipPosition(position.x, position.y);
+        var tooltipPos = calculateTooltipPosition(position.x, position.y);
         
         // 设置位置
-        tooltipElement.style.left = `${x}px`;
-        tooltipElement.style.top = `${y}px`;
+        tooltipElement.style.left = tooltipPos.x + 'px';
+        tooltipElement.style.top = tooltipPos.y + 'px';
         
         // 显示
         tooltipElement.style.opacity = '0';
         tooltipElement.style.display = 'block';
         
-        setTimeout(() => {
+        setTimeout(function() {
             tooltipElement.style.opacity = '1';
         }, 10);
         
@@ -501,7 +543,14 @@ window.showCustomTooltip = function(content, position) {
  * @param {Object} newConfig - 新的配置选项
  */
 window.updateTooltipConfig = function(newConfig) {
-    Object.assign(tooltipConfig, newConfig);
+    // 手动合并对象，避免使用Object.assign
+    if (newConfig && typeof newConfig === 'object') {
+        for (var key in newConfig) {
+            if (newConfig.hasOwnProperty(key)) {
+                tooltipConfig[key] = newConfig[key];
+            }
+        }
+    }
     setupTooltipStyles();
     console.log('Tooltip Manager: 更新了工具提示配置');
 };
@@ -510,7 +559,15 @@ window.updateTooltipConfig = function(newConfig) {
  * 在DOM加载完成后初始化工具提示
  */
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeTooltip);
+    // 使用传统的事件监听方式
+    document.attachEvent ? 
+        document.attachEvent('onreadystatechange', function() {
+            if (document.readyState === 'complete') {
+                document.detachEvent('onreadystatechange', arguments.callee);
+                initializeTooltip();
+            }
+        }) : 
+        document.addEventListener('DOMContentLoaded', initializeTooltip);
 } else {
     // DOM已加载完成，立即初始化
     initializeTooltip();

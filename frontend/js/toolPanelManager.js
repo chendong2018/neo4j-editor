@@ -59,18 +59,11 @@ const toolPanelManager = {
             window.loadNodeTypeStyles();
         }
         
-        // 绑定添加节点类型按钮事件
+        // 添加节点类型按钮事件由init.js处理，使用模态框而不是prompt
+        // 保留获取按钮的代码以便调试
         const addNodeTypeBtn = document.getElementById('add-node-type-btn');
         if (addNodeTypeBtn) {
-            addNodeTypeBtn.addEventListener('click', () => {
-                const nodeTypeName = prompt('请输入节点类型名称:');
-                if (nodeTypeName && nodeTypeName.trim()) {
-                    if (typeof window.addNodeType === 'function') {
-                        window.addNodeType(nodeTypeName.trim());
-                        window.showToast(`节点类型 "${nodeTypeName.trim()}" 已添加`, 'success');
-                    }
-                }
-            });
+            console.log('Add node type button found, event handling delegated to init.js');
         }
         
         // 绑定节点类型删除按钮事件委托
@@ -82,7 +75,7 @@ const toolPanelManager = {
                     if (nodeType && confirm(`确定要删除节点类型 "${nodeType}" 吗？`)) {
                         if (typeof window.deleteNodeType === 'function') {
                             window.deleteNodeType(nodeType);
-                            window.showToast(`节点类型 "${nodeType}" 已删除`, 'info');
+                            window.showToast('节点类型 "' + nodeType + '" 已删除', 'info');
                         }
                     }
                 }
@@ -102,13 +95,66 @@ const toolPanelManager = {
         // 绑定添加关系类型按钮事件
         const addRelationshipTypeBtn = document.getElementById('add-relationship-type-btn');
         if (addRelationshipTypeBtn) {
-            addRelationshipTypeBtn.addEventListener('click', () => {
-                const relationshipTypeName = prompt('请输入关系类型名称:');
-                if (relationshipTypeName && relationshipTypeName.trim()) {
-                    if (typeof window.addRelationshipType === 'function') {
-                        window.addRelationshipType(relationshipTypeName.trim());
-                        window.showToast(`关系类型 "${relationshipTypeName.trim()}" 已添加`, 'success');
+            // 确保只绑定一次事件监听器
+            const newClickListener = () => {
+                // 显示现有的关系类型模态对话框
+                const modal = document.getElementById('add-relationship-type-modal');
+                if (modal) {
+                    // 重置输入框
+                    var toolRelTypeNameInput = document.getElementById('new-relationship-type-name');
+                    if (toolRelTypeNameInput) {
+                        toolRelTypeNameInput.value = '';
+                        toolRelTypeNameInput.focus(); // 自动聚焦
                     }
+                    
+                    // 显示模态框
+                    modal.classList.remove('hidden');
+                }
+            };
+            
+            // 移除可能存在的旧监听器，避免重复绑定导致的冲突
+            // 注意：这里我们用新创建的函数引用移除，实际上在没有绑定过的情况下不会有效果
+            addRelationshipTypeBtn.removeEventListener('click', newClickListener);
+            // 添加事件监听器
+            addRelationshipTypeBtn.addEventListener('click', newClickListener);
+        }
+        
+        // 绑定关闭模态框事件
+        const closeModalBtn = document.getElementById('close-add-relationship-type-modal');
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', () => {
+                const modal = document.getElementById('add-relationship-type-modal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                }
+            });
+        }
+        
+        // 绑定取消按钮事件
+        const cancelBtn = document.getElementById('cancel-add-relationship-type-btn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                const modal = document.getElementById('add-relationship-type-modal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                }
+            });
+        }
+        
+        // 绑定确认按钮事件，直接调用window.addRelationshipType函数
+        const confirmBtn = document.getElementById('confirm-add-relationship-type-btn');
+        if (confirmBtn) {
+            // 移除可能存在的旧事件监听器
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            // 添加新的事件监听器
+            newConfirmBtn.addEventListener('click', function() {
+                // 检查window.addRelationshipType是否存在
+                if (typeof window.addRelationshipType === 'function') {
+                    window.addRelationshipType();
+                } else {
+                    console.error('addRelationshipType function not found');
                 }
             });
         }
@@ -122,7 +168,7 @@ const toolPanelManager = {
                     if (relationshipType && confirm(`确定要删除关系类型 "${relationshipType}" 吗？`)) {
                         if (typeof window.deleteRelationshipType === 'function') {
                             window.deleteRelationshipType(relationshipType);
-                            window.showToast(`关系类型 "${relationshipType}" 已删除`, 'info');
+                            window.showToast('关系类型 "' + relationshipType + '" 已删除', 'info');
                         }
                     }
                 }

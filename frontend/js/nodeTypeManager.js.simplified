@@ -1,0 +1,59 @@
+/**
+ * 节点类型管理模块 - 简化版本
+ */
+
+// 确保全局变量存在
+window.nodeTypeStyles = window.nodeTypeStyles || {};
+window.relationshipTypeStyles = window.relationshipTypeStyles || {};
+
+/**
+ * 从localStorage加载节点类型样式
+ */
+window.loadNodeTypeStyles = function() {
+    try {
+        console.log('Loading node type styles...');
+        return {};
+    } catch (error) {
+        console.error('Error loading node type styles:', error);
+        return {};
+    }
+};
+
+/**
+ * 保存节点类型样式到localStorage
+ */
+window.saveNodeTypeStyles = function() {
+    try {
+        console.log('Saving node type styles...');
+    } catch (error) {
+        console.error('Error saving node type styles:', error);
+    }
+};
+
+/**
+ * 从localStorage加载关系类型样式
+ */
+window.loadRelationshipTypeStyles = function() {
+    try {
+        console.log('Loading relationship type styles...');
+        return {};
+    } catch (error) {
+        console.error('Error loading relationship type styles:', error);
+        return {};
+    }
+};
+
+/**
+ * 保存关系类型样式到localStorage
+ */
+window.saveRelationshipTypeStyles = function() {
+    try {
+        console.log('Saving relationship type styles...');
+    } catch (error) {
+        console.error('Error saving relationship type styles:', error);
+    }
+};
+
+// 初始化加载样式
+window.nodeTypeStyles = window.loadNodeTypeStyles();
+window.relationshipTypeStyles = window.loadRelationshipTypeStyles();

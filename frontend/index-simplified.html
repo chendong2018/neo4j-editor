@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j Editor - Simplified</title>
+    
+    <!-- 核心工具函数 -->
+    <script src="./js/utils.js?v=4"></script>
+    
+    <!-- 核心UI和功能模块 -->
+    <script src="./js/uiManager.js?v=4"></script>
+    <script src="./js/apiManager.js?v=4"></script>
+    
+    <!-- 简单的样式 -->
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; }
+    </style>
+</head>
+<body>
+    <h1>Neo4j Editor - Simplified Version</h1>
+    <div id="toast-container"></div>
+    
+    <script>
+        // 简单的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Simplified Neo4j Editor loaded');
+            
+            // 测试UI Manager
+            if (window.uiManager) {
+                console.log('UI Manager loaded successfully');
+                try {
+                    window.uiManager.showToast('Neo4j Editor loaded successfully', 'success');
+                } catch (e) {
+                    console.error('Error showing toast:', e);
+                }
+            } else {
+                console.error('UI Manager not loaded');
+            }
+        });
+    </script>
+</body>
+</html>

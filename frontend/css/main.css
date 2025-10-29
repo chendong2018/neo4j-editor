@@ -98,6 +98,110 @@ body {
 }
 
 /* Form input styles */
+input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+input[type="checkbox"] + label {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Label filter styles */
+.label-filter-panel {
+    font-size: 14px;
+}
+
+.label-filter-panel h3 {
+    font-size: 16px;
+    margin-bottom: 12px;
+    color: #e0e0e0;
+}
+
+.available-labels {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+
+.label-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+/* Save buttons styles */
+.save-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.save-buttons .btn {
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Toast notification styles */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    background-color: #333;
+    color: white;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 10000;
+    animation: slideInRight 0.3s ease-out;
+}
+
+.toast.success {
+    background-color: #4CAF50;
+}
+
+.toast.error {
+    background-color: #F44336;
+}
+
+.toast.info {
+    background-color: #2196F3;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Toolbar styles */
+#toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #333;
+}
+
+/* Element counts display */
+#element-counts {
+    font-size: 13px;
+    color: #b0b0b0;
+    margin-left: auto;
+    margin-right: 16px;
+}
 .form-input {
     background-color: #1E1E1E;
     border: 1px solid #333333;
