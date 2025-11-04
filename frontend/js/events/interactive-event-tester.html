@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交互式事件测试工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #333;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .layout {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .control-panel {
+            background: white;
+            border-radius: 12px;
+            -webkit-border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            -webkit-box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        
+        .canvas-section {
+            background: white;
+            border-radius: 12px;
+            -webkit-border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .canvas-tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 15px;
+        }
+        
+        .tab-button {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            -webkit-transition: all 0.3s;
+        }
+        
+        .tab-button.active {
+            color: #2196F3;
+            border-bottom-color: #2196F3;
+            font-weight: 500;
+        }
+        
+        .canvas-container {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            -webkit-border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #canvas {
+            width: 100%;
+            height: 500px;
+            background-color: #fafafa;
+            cursor: crosshair;
+        }
+        
+        .canvas-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            -webkit-border-radius: 6px;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        .control-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #555;
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            -webkit-border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            -webkit-transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background-color: #2196F3;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #1976D2;
+            transform: translateY(-1px);
+            -webkit-transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+            -webkit-box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+        }
+        
+        .btn-secondary {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .btn-success {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #45a049;
+        }
+        
+        .btn-danger {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #da190b;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .log-section {
+            background: white;
+            border-radius: 12px;
+            -webkit-border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .log-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .log-tab {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: #f9f9fa;
+            border-radius: 4px;
+            -webkit-border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            -webkit-transition: all 0.3s;
+        }
+        
+        .log-tab.active {
+            background: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+        
+        .log-container {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            -webkit-border-radius: 6px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .log-entry {
+            margin: 4px 0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            -webkit-border-radius: 4px;
+            border-left: 3px solid transparent;
+        }
+        
+        .log-entry.info {
+            border-left-color: #2196F3;
+            background-color: #e3f2fd;
+        }
+        
+        .log-entry.event {
+            border-left-color: #9c27b0;
+            background-color: #f3e5f5;
+            font-weight: 500;
+        }
+        
+        .log-entry.action {
+            border-left-color: #4CAF50;
+            background-color: #e8f5e9;
+        }
+        
+        .log-entry.error {
+            border-left-color: #f44336;
+            background-color: #ffebee;
+        }
+        
+        .log-entry.warning {
+            border-left-color: #ff9800;
+            background-color: #fff3e0;
+        }
+        
+        .log-entry.test {
+            border-left-color: #607d8b;
+            background-color: #eceff1;
+            font-style: italic;
+        }
+        
+        .node-counter {
+            background: #2196F3;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            -webkit-border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .instructions {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            -webkit-border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .instructions h4 {
+            margin: 0 0 10px 0;
+            color: #1976D2;
+        }
+        
+        .instructions ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 5px;
+        }
+        
+        .highlight {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+        
+        @-webkit-keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+        
+        /* 模拟节点样式 */
+        .sim-node {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            border-radius: 50%;
+            -webkit-border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            -webkit-box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+            -webkit-transition: all 0.2s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            z-index: 10;
+        }
+        
+        .sim-node:hover {
+            transform: scale(1.1);
+            -webkit-transform: scale(1.1);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            -webkit-box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+        
+        .sim-node.selected {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            transform: scale(1.15);
+            -webkit-transform: scale(1.15);
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+            -webkit-box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+        
+        .sim-node.source {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            animation: pulse 1.5s infinite;
+            -webkit-animation: pulse 1.5s infinite;
+        }
+        
+        .sim-edge {
+            position: absolute;
+            background: #666;
+            height: 2px;
+            z-index: 5;
+            transform-origin: 0 0;
+            -webkit-transform-origin: 0 0;
+        }
+        
+        .sim-edge.temporary {
+            background: #ff9800;
+            height: 3px;
+            opacity: 0.7;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 1024px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .control-panel {
+                order: 1;
+            }
+            
+            .main-content {
+                order: 2;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>交互式事件测试工具</h1>
+        
+        <div class="layout">
+            <div class="main-content">
+                <!-- 画布部分 -->
+                <div class="canvas-section">
+                    <div class="canvas-tabs">
+                        <button class="tab-button active" data-canvas="tree">Tree Canvas</button>
+                        <button class="tab-button" data-canvas="network">Network Canvas</button>
+                    </div>
+                    
+                    <div class="canvas-container">
+                        <div id="canvas" class="canvas">
+                            <div class="canvas-info">
+                                <div>当前画布: <strong>Tree Canvas</strong></div>
+                                <div>操作模式: <strong>选择</strong></div>
+                                <div>已选中: <strong>0</strong> 个节点</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 日志部分 -->
+                <div class="log-section">
+                    <div class="section-title">事件日志</div>
+                    
+                    <div class="log-tabs">
+                        <button class="log-tab active" data-log="all">全部</button>
+                        <button class="log-tab" data-log="events">事件</button>
+                        <button class="log-tab" data-log="actions">操作</button>
+                        <button class="log-tab" data-log="errors">错误</button>
+                        <button class="btn btn-small btn-secondary" id="clear-logs">清空</button>
+                    </div>
+                    
+                    <div id="log-container" class="log-container">
+                        <!-- 日志将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 控制面板 -->
+            <div class="control-panel">
+                <div class="section-title">测试控制面板</div>
+                
+                <div class="instructions">
+                    <h4>使用说明</h4>
+                    <ul>
+                        <li>选择操作模式，然后在画布上进行交互</li>
+                        <li>使用测试按钮模拟各种事件场景</li>
+                        <li>查看日志面板了解事件触发和处理流程</li>
+                    </ul>
+                </div>
+                
+                <!-- 模式选择 -->
+                <div class="control-group">
+                    <label>操作模式</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="mode" value="select" checked> 选择
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="mode" value="node"> 节点
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="mode" value="relationship"> 关系
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 关系类型选择 -->
+                <div class="control-group" id="relationship-type-group">
+                    <label>关系类型</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="relationship-type" value="CHILD_OF" checked> CHILD_OF
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="relationship-type" value="RELATES_TO"> RELATES_TO
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 画布状态 -->
+                <div class="node-counter">
+                    画布中的节点: <span id="node-count">0</span>
+                </div>
+                
+                <!-- 模拟操作按钮 -->
+                <div class="control-group">
+                    <label>模拟操作</label>
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="add-node">添加节点</button>
+                        <button class="btn btn-secondary" id="select-node">选择节点</button>
+                        <button class="btn btn-secondary" id="delete-node">删除节点</button>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="btn btn-success" id="create-relationship">创建关系</button>
+                        <button class="btn btn-danger" id="clear-canvas">清空画布</button>
+                    </div>
+                </div>
+                
+                <!-- 批量测试 -->
+                <div class="control-group">
+                    <label>批量测试</label>
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="run-test-suite">运行测试套件</button>
+                        <button class="btn btn-secondary" id="load-test-data">加载测试数据</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        // 导入事件管理模块
+        import { EventManager, EventSimulator } from './index.js';
+        
+        // 当前状态
+        let currentCanvas = 'tree';
+        let currentMode = 'select';
+        let currentRelationshipType = 'CHILD_OF';
+        let selectedNodes = new Set();
+        let relationshipSource = null;
+        
+        // 模拟数据
+        const nodes = [];
+        const edges = [];
+        let nodeIdCounter = 0;
+        
+        // DOM元素
+        const canvasEl = document.getElementById('canvas');
+        const canvasInfoEl = canvasEl.querySelector('.canvas-info');
+        const logContainerEl = document.getElementById('log-container');
+        const nodeCountEl = document.getElementById('node-count');
+        
+        // 重写console.log以在界面上显示日志
+        const originalConsoleLog = console.log;
+        console.log = function() {
+            const message = Array.from(arguments).join(' ');
+            let type = 'info';
+            let prefix = '';
+            
+            if (message.includes('[Interaction]') || message.includes('[Event]')) {
+                type = 'event';
+                prefix = '事件';
+            } else if (message.includes('[Action]')) {
+                type = 'action';
+                prefix = '操作';
+            } else if (message.includes('[Error]') || message.includes('[error]')) {
+                type = 'error';
+                prefix = '错误';
+            } else if (message.includes('[Warning]') || message.includes('[warning]')) {
+                type = 'warning';
+                prefix = '警告';
+            } else if (message.includes('[Test]')) {
+                type = 'test';
+                prefix = '测试';
+            }
+            
+            addLog(message, type, prefix);
+            originalConsoleLog.apply(console, arguments);
+        };
+        
+        // 添加日志
+        function addLog(message, type = 'info', prefix = '') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const formattedMessage = prefix ? `[${prefix}] ${message}` : message;
+            
+            logEntry.innerHTML = `<span style="color: #666;">[${timestamp}]</span> ${formattedMessage}`;
+            
+            logContainerEl.appendChild(logEntry);
+            logContainerEl.scrollTop = logContainerEl.scrollHeight;
+        }
+        
+        // 更新画布信息
+        function updateCanvasInfo() {
+            const modeText = currentMode === 'select' ? '选择' : 
+                            currentMode === 'node' ? '节点' : 
+                            `关系 (${currentRelationshipType})`;
+            
+            canvasInfoEl.innerHTML = `
+                <div>当前画布: <strong>${currentCanvas === 'tree' ? 'Tree Canvas' : 'Network Canvas'}</strong></div>
+                <div>操作模式: <strong>${modeText}</strong></div>
+                <div>已选中: <strong>${selectedNodes.size}</strong> 个节点</div>
+            `;
+        }
+        
+        // 创建模拟节点
+        function createNode(x, y, targetCanvas = null) {
+            // 如果指定了目标画布，则使用指定的画布；否则使用当前画布
+            const canvas = targetCanvas || currentCanvas;
+            
+            const id = `node-${++nodeIdCounter}`;
+            
+            const node = {
+                id,
+                x: x || 100 + Math.random() * 400,
+                y: y || 100 + Math.random() * 300,
+                label: id.substring(5),
+                canvas: canvas, // 确保节点属于正确的画布
+                isLeaf: Math.random() > 0.3
+            };
+            
+            nodes.push(node);
+            
+            // 只有当前显示的画布才渲染
+            if (canvas === currentCanvas) {
+                renderNode(node);
+                updateNodeCount();
+            }
+            
+            console.log(`[Test] Created node: ${id} at position (${node.x}, ${node.y}) in ${canvas} canvas`);
+            
+            return node;
+        }
+        
+        // 渲染节点
+        function renderNode(node) {
+            const nodeEl = document.createElement('div');
+            nodeEl.className = 'sim-node';
+            nodeEl.id = node.id;
+            nodeEl.style.left = `${node.x - 30}px`;
+            nodeEl.style.top = `${node.y - 30}px`;
+            nodeEl.textContent = node.label;
+            
+            // 绑定点击事件
+            nodeEl.addEventListener('click', (e) => {
+                handleNodeClick(node, e);
+            });
+            
+            // 绑定右键事件
+            nodeEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                handleNodeContextMenu(node, e);
+            });
+            
+            // 绑定拖拽事件
+            nodeEl.addEventListener('mousedown', (e) => {
+                startDrag(node, e);
+            });
+            
+            canvasEl.appendChild(nodeEl);
+        }
+        
+        // 创建模拟关系
+        function createEdge(sourceId, targetId, type = 'CHILD_OF', temporary = false) {
+            const source = nodes.find(n => n.id === sourceId);
+            const target = nodes.find(n => n.id === targetId);
+            
+            if (!source || !target) {
+                console.error(`[Error] Cannot create edge: source or target node not found`);
+                return null;
+            }
+            
+            // 确保边和节点属于同一画布
+            const canvas = source.canvas;
+            if (target.canvas !== canvas) {
+                console.error(`[Error] Cannot create edge between nodes on different canvases`);
+                return null;
+            }
+            
+            // 只有在当前显示的画布才渲染边
+            if (canvas !== currentCanvas) {
+                // 存储边但不渲染
+                edges.push({
+                    id: `edge-${Date.now()}`,
+                    source: sourceId,
+                    target: targetId,
+                    type,
+                    canvas: canvas,
+                    element: null
+                });
+                return null;
+            }
+            
+            // 计算连线参数
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            
+            const edge = document.createElement('div');
+            edge.className = `sim-edge ${temporary ? 'temporary' : ''}`;
+            edge.style.width = `${length}px`;
+            edge.style.left = `${source.x}px`;
+            edge.style.top = `${source.y}px`;
+            edge.style.transform = `rotate(${angle}deg)`;
+            edge.style.webkitTransform = `rotate(${angle}deg)`;
+            
+            // 确保边在节点下方
+            edge.style.zIndex = '5';
+            
+            canvasEl.appendChild(edge);
+            
+            if (!temporary) {
+                edges.push({
+                    id: `edge-${Date.now()}`,
+                    source: sourceId,
+                    target: targetId,
+                    type,
+                    canvas: canvas,
+                    element: edge
+                });
+            }
+            
+            return edge;
+        }
+        
+        // 更新节点计数
+        function updateNodeCount() {
+            const canvasNodes = nodes.filter(n => n.canvas === currentCanvas);
+            nodeCountEl.textContent = canvasNodes.length;
+        }
+        
+        // 处理节点点击
+        function handleNodeClick(node, event) {
+            console.log(`[Event] Node clicked: ${node.id}, Canvas: ${node.canvas}, Mode: ${currentMode}`);
+            
+            // 确保只处理当前画布上的节点
+            if (node.canvas !== currentCanvas) {
+                console.log(`[Event] Node ${node.id} is not on current canvas (${currentCanvas})`);
+                return;
+            }
+            
+            switch (currentMode) {
+                case 'select':
+                    handleSelectModeClick(node, event);
+                    break;
+                case 'relationship':
+                    handleRelationshipModeClick(node);
+                    break;
+                // node模式下点击节点不执行操作
+            }
+        }
+        
+        // 处理选择模式点击
+        function handleSelectModeClick(node, event) {
+            if (event.ctrlKey || event.metaKey) {
+                // 多选
+                if (selectedNodes.has(node.id)) {
+                    selectedNodes.delete(node.id);
+                    document.getElementById(node.id).classList.remove('selected');
+                } else {
+                    selectedNodes.add(node.id);
+                    document.getElementById(node.id).classList.add('selected');
+                }
+            } else {
+                // 单选
+                clearSelection();
+                selectedNodes.add(node.id);
+                document.getElementById(node.id).classList.add('selected');
+            }
+            
+            updateCanvasInfo();
+        }
+        
+        // 处理关系模式点击
+        function handleRelationshipModeClick(node) {
+            console.log(`[Event] Relationship mode node click: ${node.id}`);
+            
+            // 检查节点是否存在
+            if (!node) {
+                console.log(`[Warning] Node not found`);
+                return;
+            }
+            
+            // 关系只能在同一画布内创建
+            if (node.canvas !== currentCanvas) {
+                console.log(`[Warning] Cannot create relationship across different canvases`);
+                return;
+            }
+            
+            if (!relationshipSource) {
+                // 第一步：选择源节点
+                relationshipSource = node;
+                const nodeEl = document.getElementById(node.id);
+                if (nodeEl) {
+                    nodeEl.classList.add('source');
+                }
+                console.log(`[Event] Relationship creation started. Source: ${node.id}`);
+            } else if (relationshipSource.id === node.id) {
+                // 点击相同节点，取消
+                const nodeEl = document.getElementById(node.id);
+                if (nodeEl) {
+                    nodeEl.classList.remove('source');
+                }
+                relationshipSource = null;
+                console.log(`[Event] Relationship creation canceled`);
+            } else {
+                // 第二步：创建关系
+                const target = node;
+                
+                // 获取源节点DOM元素
+                const sourceEl = document.getElementById(relationshipSource.id);
+                if (sourceEl) {
+                    sourceEl.classList.remove('source');
+                }
+                
+                // 创建关系
+                console.log(`[Action] Creating relationship: ${relationshipSource.id} -${currentRelationshipType}-> ${target.id}`);
+                createEdge(relationshipSource.id, target.id, currentRelationshipType);
+                
+                // 清理状态
+                relationshipSource = null;
+            }
+        }
+        
+        // 处理节点右键菜单
+        function handleNodeContextMenu(node, event) {
+            console.log(`[Event] Node context menu opened: ${node.id}`);
+            // 实际实现中可以显示右键菜单
+        }
+        
+        // 开始拖拽
+         function startDrag(node, event) {
+             event.preventDefault();
+              
+             const nodeEl = document.getElementById(node.id);
+             nodeEl.classList.add('dragging');
+              
+             const startX = event.clientX;
+             const startY = event.clientY;
+             const startNodeX = node.x;
+             const startNodeY = node.y;
+              
+             function onMouseMove(e) {
+                 const dx = e.clientX - startX;
+                 const dy = e.clientY - startY;
+                 
+                 node.x = startNodeX + dx;
+                 node.y = startNodeY + dy;
+                 
+                 nodeEl.style.left = `${node.x - 30}px`;
+                 nodeEl.style.top = `${node.y - 30}px`;
+                 
+                 // 更新连接的边
+                 updateNodeEdges(node.id);
+             }
+              
+             function onMouseUp() {
+                 nodeEl.classList.remove('dragging');
+                 document.removeEventListener('mousemove', onMouseMove);
+                 document.removeEventListener('mouseup', onMouseUp);
+                 
+                 console.log(`[Event] Node dragged: ${node.id} to (${node.x.toFixed(1)}, ${node.y.toFixed(1)})`);
+                 
+                 // 检查是否拖到了另一个节点上（结构拖拽）
+                 if (currentCanvas === 'tree') {
+                     checkDropTarget(node);
+                 }
+             }
+              
+             document.addEventListener('mousemove', onMouseMove);
+             document.addEventListener('mouseup', onMouseUp);
+        }
+        
+        // 更新节点的边
+        function updateNodeEdges(nodeId) {
+            edges.forEach(edge => {
+                if (edge.source === nodeId || edge.target === nodeId) {
+                    const source = nodes.find(n => n.id === edge.source);
+                    const target = nodes.find(n => n.id === edge.target);
+                    
+                    if (source && target) {
+                        const dx = target.x - source.x;
+                        const dy = target.y - source.y;
+                        const length = Math.sqrt(dx * dx + dy * dy);
+                        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                        
+                        edge.element.style.width = `${length}px`;
+                        edge.element.style.transform = `rotate(${angle}deg)`;
+                    }
+                }
+            });
+        }
+        
+        // 检查拖放目标
+        function checkDropTarget(draggedNode) {
+            // 实际实现中需要检查是否拖到了另一个节点上
+            console.log(`[Test] Checking drop target for node: ${draggedNode.id}`);
+        }
+        
+        // 清除选择
+        function clearSelection() {
+            selectedNodes.forEach(nodeId => {
+                const nodeEl = document.getElementById(nodeId);
+                if (nodeEl) {
+                    nodeEl.classList.remove('selected');
+                }
+            });
+            selectedNodes.clear();
+        }
+        
+        // 清除画布
+        function clearCanvas() {
+            // 移除所有节点
+            nodes.forEach(node => {
+                const nodeEl = document.getElementById(node.id);
+                if (nodeEl) {
+                    canvasEl.removeChild(nodeEl);
+                }
+            });
+            
+            // 移除所有边
+            edges.forEach(edge => {
+                if (edge.element && edge.element.parentNode === canvasEl) {
+                    canvasEl.removeChild(edge.element);
+                }
+            });
+            
+            // 清空数组
+            nodes.length = 0;
+            edges.length = 0;
+            
+            // 清理状态
+            clearSelection();
+            relationshipSource = null;
+            
+            updateNodeCount();
+            updateCanvasInfo();
+            
+            console.log(`[Action] Canvas cleared. Nodes: ${nodes.length}, Edges: ${edges.length}`);
+        }
+        
+        // 切换画布
+        function switchCanvas(canvasType) {
+            currentCanvas = canvasType;
+            
+            // 更新标签状态
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`.tab-button[data-canvas="${canvasType}"]`).classList.add('active');
+            
+            // 重新渲染画布
+            renderCanvas();
+            
+            // 更新信息
+            updateCanvasInfo();
+            updateNodeCount();
+            
+            console.log(`[Event] Switched to ${canvasType === 'tree' ? 'Tree' : 'Network'} Canvas`);
+        }
+        
+        // 切换模式
+        function switchMode(mode) {
+            currentMode = mode;
+            
+            // 更新关系类型选择的可见性
+            const relTypeGroup = document.getElementById('relationship-type-group');
+            relTypeGroup.style.display = mode === 'relationship' ? 'block' : 'none';
+            
+            // 清理临时状态
+            if (relationshipSource) {
+                const nodeEl = document.getElementById(relationshipSource.id);
+                if (nodeEl) {
+                    nodeEl.classList.remove('source');
+                }
+                relationshipSource = null;
+            }
+            
+            // 更新信息
+            updateCanvasInfo();
+            
+            console.log(`[Event] Switched to ${mode} mode`);
+        }
+        
+        // 渲染画布
+        function renderCanvas() {
+            // 清空画布内容（保留信息面板）
+            const infoPanel = canvasEl.querySelector('.canvas-info');
+            canvasEl.innerHTML = '';
+            canvasEl.appendChild(infoPanel);
+            
+            // 渲染该画布的边
+            edges.forEach(edge => {
+                // 确保边属于当前画布
+                if (edge.canvas === currentCanvas) {
+                    const source = nodes.find(n => n.id === edge.source);
+                    const target = nodes.find(n => n.id === edge.target);
+                    
+                    if (source && target) {
+                        // 重新创建边
+                        const edgeEl = document.createElement('div');
+                        edgeEl.className = 'sim-edge';
+                        
+                        const dx = target.x - source.x;
+                        const dy = target.y - source.y;
+                        const length = Math.sqrt(dx * dx + dy * dy);
+                        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                        
+                        edgeEl.style.width = `${length}px`;
+                        edgeEl.style.left = `${source.x}px`;
+                        edgeEl.style.top = `${source.y}px`;
+                        edgeEl.style.transform = `rotate(${angle}deg)`;
+                        edgeEl.style.webkitTransform = `rotate(${angle}deg)`;
+                        
+                        canvasEl.appendChild(edgeEl);
+                        edge.element = edgeEl; // 更新引用
+                    }
+                }
+            });
+            
+            // 渲染该画布的节点
+            nodes.forEach(node => {
+                if (node.canvas === currentCanvas) {
+                    renderNode(node);
+                    
+                    // 恢复选中状态
+                    if (selectedNodes.has(node.id)) {
+                        const nodeEl = document.getElementById(node.id);
+                        if (nodeEl) {
+                            nodeEl.classList.add('selected');
+                        }
+                    }
+                }
+            });
+            
+            // 更新节点计数
+            updateNodeCount();
+        }
+        
+        // 初始化模拟图数据服务
+        const mockGraphService = {
+            addNode: (params) => {
+                console.log(`[Graph Service] addNode called with params:`, params);
+                return createNode();
+            },
+            
+            deleteNode: (nodeId) => {
+                console.log(`[Graph Service] deleteNode called for:`, nodeId);
+                const nodeIndex = nodes.findIndex(n => n.id === nodeId);
+                if (nodeIndex !== -1) {
+                    const nodeEl = document.getElementById(nodeId);
+                    if (nodeEl) {
+                        canvasEl.removeChild(nodeEl);
+                    }
+                    nodes.splice(nodeIndex, 1);
+                    updateNodeCount();
+                    
+                    // 删除相关边
+                    const edgesToRemove = edges.filter(edge => edge.source === nodeId || edge.target === nodeId);
+                    edgesToRemove.forEach(edge => {
+                        if (edge.element) {
+                            canvasEl.removeChild(edge.element);
+                        }
+                    });
+                    
+                    edges.length = 0;
+                    edges.push(...edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId));
+                }
+            },
+            
+            moveNode: (sourceId, targetId) => {
+                console.log(`[Graph Service] moveNode called:`, sourceId, '->', targetId);
+                // 实际实现中会处理父子关系变更
+            },
+            
+            addRelationship: (sourceId, targetId, type) => {
+                console.log(`[Graph Service] addRelationship called:`, sourceId, '-', type, '->', targetId);
+                createEdge(sourceId, targetId, type);
+            },
+            
+            setNetworkContext: (nodeId) => {
+                console.log(`[Graph Service] setNetworkContext called for:`, nodeId);
+                // 实际实现中会更新Network Canvas的显示内容
+            },
+            
+            getCurrentNetworkContext: () => {
+                console.log(`[Graph Service] getCurrentNetworkContext called`);
+                return 'root';
+            },
+            
+            selectNode: (nodeId) => {
+                console.log(`[Graph Service] selectNode called for:`, nodeId);
+                clearSelection();
+                selectedNodes.add(nodeId);
+                const nodeEl = document.getElementById(nodeId);
+                if (nodeEl) {
+                    nodeEl.classList.add('selected');
+                }
+                updateCanvasInfo();
+            },
+            
+            clearSelection: () => {
+                console.log(`[Graph Service] clearSelection called`);
+                clearSelection();
+                updateCanvasInfo();
+            },
+            
+            focusPropertiesPanel: (nodeId) => {
+                console.log(`[Graph Service] focusPropertiesPanel called for:`, nodeId);
+            },
+            
+            getNodeParent: (nodeId) => {
+                console.log(`[Graph Service] getNodeParent called for:`, nodeId);
+                return null; // 示例返回
+            },
+            
+            hasChildNodes: (nodeId) => {
+                console.log(`[Graph Service] hasChildNodes called for:`, nodeId);
+                return edges.some(edge => edge.source === nodeId);
+            }
+        };
+        
+        // 初始化事件系统
+        function initEventSystem() {
+            // 创建事件管理器的包装器
+            const eventManager = {
+                switchMode: (mode, subType) => {
+                    currentMode = mode;
+                    if (subType) {
+                        currentRelationshipType = subType;
+                    }
+                    switchMode(mode);
+                    
+                    // 更新单选按钮状态
+                    document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+                    if (mode === 'relationship' && subType) {
+                        document.querySelector(`input[name="relationship-type"][value="${subType}"]`).checked = true;
+                    }
+                },
+                
+                getNodeFromEvent: (event, canvasType) => {
+                    // 简化实现，返回点击位置的节点
+                    const rect = canvasEl.getBoundingClientRect();
+                    const x = event.clientX - rect.left;
+                    const y = event.clientY - rect.top;
+                    
+                    return nodes.find(node => {
+                        if (node.canvas === currentCanvas) {
+                            const dx = x - node.x;
+                            const dy = y - node.y;
+                            return Math.sqrt(dx * dx + dy * dy) <= 30;
+                        }
+                        return false;
+                    }) || null;
+                },
+                
+                getRelationshipFromEvent: (event, canvasType) => {
+                    // 简化实现，返回null
+                    return null;
+                }
+            };
+            
+            // 创建事件模拟器
+            const eventSimulator = {
+                setMockData: (nodesData, relationshipsData) => {
+                    console.log(`[Test] Setting mock data: ${nodesData.length} nodes, ${relationshipsData.length} relationships`);
+                },
+                
+                simulateNodeClick: (nodeId, canvasType) => {
+                    console.log(`[Test] Simulating node click: ${nodeId} in ${canvasType}`);
+                    const node = nodes.find(n => n.id === nodeId);
+                    if (node) {
+                        handleNodeClick(node, { ctrlKey: false, metaKey: false });
+                    }
+                },
+                
+                simulateRelationshipCreation: (sourceId, targetId, relType) => {
+                    console.log(`[Test] Simulating relationship creation: ${sourceId} -${relType}-> ${targetId}`);
+                    createEdge(sourceId, targetId, relType);
+                },
+                
+                runTestSuite: () => {
+                    console.log(`[Test] Running test suite...`);
+                    
+                    // 测试模式切换
+                    eventManager.switchMode('select');
+                    eventManager.switchMode('node');
+                    eventManager.switchMode('relationship', 'CHILD_OF');
+                    eventManager.switchMode('relationship', 'RELATES_TO');
+                    eventManager.switchMode('select');
+                    
+                    // 测试节点操作
+                    if (nodes.length === 0) {
+                        createNode(200, 200);
+                        createNode(300, 200);
+                    }
+                    
+                    if (nodes.length >= 2) {
+                        // 测试关系创建
+                        eventManager.switchMode('relationship', 'RELATES_TO');
+                        createEdge(nodes[0].id, nodes[1].id, 'RELATES_TO');
+                        eventManager.switchMode('select');
+                    }
+                    
+                    console.log(`[Test] Test suite completed`);
+                }
+            };
+            
+            return { eventManager, eventSimulator };
+        }
+        
+        // 绑定事件
+        function bindEvents(eventSystem) {
+            const { eventManager, eventSimulator } = eventSystem;
+            
+            // 画布切换
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    switchCanvas(btn.dataset.canvas);
+                });
+            });
+            
+            // 模式切换
+            document.querySelectorAll('input[name="mode"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    switchMode(radio.value);
+                });
+            });
+            
+            // 关系类型切换
+            document.querySelectorAll('input[name="relationship-type"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    currentRelationshipType = radio.value;
+                    updateCanvasInfo();
+                });
+            });
+            
+            // 画布点击（空白处）
+            canvasEl.addEventListener('click', (e) => {
+                // 检查是否点击在节点上
+                const target = e.target;
+                if (target === canvasEl || target.classList.contains('canvas-info')) {
+                    console.log(`[Event] Canvas clicked at position (${e.clientX}, ${e.clientY})`);
+                    
+                    if (currentMode === 'node') {
+                        // 节点模式下点击空白处创建节点
+                        const rect = canvasEl.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        
+                        // 处理不同画布的节点创建规则
+                        if (currentCanvas === 'network') {
+                            // 在network画布上，只有当有选中的节点作为上下文时才能创建节点
+                            if (selectedNodes.size === 1) {
+                                const parentId = Array.from(selectedNodes)[0];
+                                createNode(x, y, 'network'); // 确保在network画布创建
+                                console.log(`[Action] Created node in ${currentCanvas} canvas with parent context: ${parentId}`);
+                            } else {
+                                console.log('[Warning] Cannot create node on network canvas without parent context');
+                            }
+                        } else if (currentCanvas === 'tree') {
+                             // 在tree画布上，无论是否有父节点都可以创建节点
+                             const node = createNode(x, y, 'tree'); // 确保在tree画布创建
+                             console.log(`[Action] Created node in ${currentCanvas} canvas: ${node.id}`);
+                         }
+                    } else if (currentMode === 'select') {
+                        // 选择模式下点击空白处取消选择
+                        clearSelection();
+                        updateCanvasInfo();
+                    }
+                }
+            });
+            
+            // 右键菜单
+            canvasEl.addEventListener('contextmenu', (e) => {
+                if (e.target === canvasEl) {
+                    e.preventDefault();
+                    console.log(`[Event] Canvas context menu opened`);
+                }
+            });
+            
+            // 模拟操作按钮
+            document.getElementById('add-node').addEventListener('click', () => {
+                createNode();
+            });
+            
+            document.getElementById('select-node').addEventListener('click', () => {
+                if (nodes.length > 0) {
+                    const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+                    eventSimulator.simulateNodeClick(randomNode.id, currentCanvas);
+                }
+            });
+            
+            document.getElementById('delete-node').addEventListener('click', () => {
+                if (selectedNodes.size > 0) {
+                    const nodeId = Array.from(selectedNodes)[0];
+                    mockGraphService.deleteNode(nodeId);
+                    selectedNodes.delete(nodeId);
+                    updateCanvasInfo();
+                } else if (nodes.length > 0) {
+                    mockGraphService.deleteNode(nodes[0].id);
+                }
+            });
+            
+            document.getElementById('create-relationship').addEventListener('click', () => {
+                if (nodes.length >= 2) {
+                    eventSimulator.simulateRelationshipCreation(
+                        nodes[0].id,
+                        nodes[1].id,
+                        currentRelationshipType
+                    );
+                }
+            });
+            
+            document.getElementById('clear-canvas').addEventListener('click', () => {
+                if (confirm('确定要清空画布吗？')) {
+                    clearCanvas();
+                }
+            });
+            
+            // 批量测试
+            document.getElementById('run-test-suite').addEventListener('click', () => {
+                eventSimulator.runTestSuite();
+            });
+            
+            document.getElementById('load-test-data').addEventListener('click', () => {
+                console.log(`[Test] Loading test data...`);
+                clearCanvas();
+                
+                // 创建测试数据
+                const centerX = 300;
+                const centerY = 250;
+                
+                // 创建中心节点
+                const centerNode = createNode(centerX, centerY);
+                
+                // 创建周围节点
+                for (let i = 0; i < 5; i++) {
+                    const angle = (i / 5) * Math.PI * 2;
+                    const radius = 150;
+                    const x = centerX + Math.cos(angle) * radius;
+                    const y = centerY + Math.sin(angle) * radius;
+                    
+                    const node = createNode(x, y);
+                    createEdge(centerNode.id, node.id, 'CHILD_OF');
+                }
+                
+                console.log(`[Test] Test data loaded successfully`);
+            });
+            
+            // 日志过滤
+            document.querySelectorAll('.log-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // 更新标签状态
+                    document.querySelectorAll('.log-tab').forEach(t => {
+                        t.classList.remove('active');
+                    });
+                    tab.classList.add('active');
+                    
+                    // 过滤日志
+                    const logType = tab.dataset.log;
+                    const logEntries = logContainerEl.querySelectorAll('.log-entry');
+                    
+                    logEntries.forEach(entry => {
+                        if (logType === 'all' || entry.classList.contains(logType)) {
+                            entry.style.display = 'block';
+                        } else {
+                            entry.style.display = 'none';
+                        }
+                    });
+                });
+            });
+            
+            // 清空日志
+            document.getElementById('clear-logs').addEventListener('click', () => {
+                logContainerEl.innerHTML = '';
+                console.log(`[Action] Logs cleared`);
+            });
+        }
+        
+        // 初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('[Test] Initializing interactive event tester...');
+            
+            // 初始化事件系统
+            const eventSystem = initEventSystem();
+            
+            // 绑定事件
+            bindEvents(eventSystem);
+            
+            // 默认隐藏关系类型选择
+            document.getElementById('relationship-type-group').style.display = 'none';
+            
+            console.log('[Test] Interactive event tester initialized successfully');
+        });
+    </script>
+</body>
+</html>","}}}

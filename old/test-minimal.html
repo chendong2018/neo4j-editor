@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最小化测试 - Neo4j Editor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>最小化测试</h1>
+    <div id="status">加载中...</div>
+    
+    <script src="js/main.js"></script>
+    <script>
+        try {
+            // 简单测试模块系统是否正常工作
+            console.log('测试模块系统');
+            
+            // 定义一个简单的测试模块
+            neo4jEditor.define('testModule', [], function() {
+                const module = {
+                    name: 'testModule',
+                    version: '1.0.0',
+                    initialized: false,
+                    initialize: function() {
+                        this.initialized = true;
+                        return true;
+                    }
+                };
+                return module;
+            });
+            
+            // 获取模块并初始化
+            const testModule = neo4jEditor.getModule('testModule');
+            
+            if (testModule) {
+                testModule.initialize();
+                document.getElementById('status').className = 'success';
+                document.getElementById('status').textContent = '模块系统工作正常！模块已初始化。';
+            } else {
+                document.getElementById('status').className = 'error';
+                document.getElementById('status').textContent = '无法获取测试模块。';
+            }
+        } catch (error) {
+            document.getElementById('status').className = 'error';
+            document.getElementById('status').textContent = '错误: ' + error.message;
+            console.error('测试失败:', error);
+        }
+    </script>
+</body>
+</html>

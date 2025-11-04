@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventBus 测试 - Neo4j Editor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        #event-logs {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .event-log-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <h1>EventBus 功能测试</h1>
+    <div id="status">等待加载...</div>
+    
+    <button id="test-eventbus">测试 EventBus</button>
+    
+    <div id="event-logs">
+        <div class="event-log-item">[日志] 等待测试开始...</div>
+    </div>
+    
+    <script src="js/main.js"></script>
+    <script>
+        // 记录日志
+        function log(message) {
+            const logsContainer = document.getElementById('event-logs');
+            const logItem = document.createElement('div');
+            logItem.className = 'event-log-item';
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsContainer.appendChild(logItem);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+            console.log(message);
+        }
+        
+        // 测试 EventBus
+        document.getElementById('test-eventbus').addEventListener('click', function() {
+            log('开始测试 EventBus...');
+            
+            try {
+                // 检查 neo4jEditor 对象是否存在
+                if (!window.neo4jEditor) {
+                    throw new Error('neo4jEditor 对象未定义');
+                }
+                
+                log('neo4jEditor 对象存在');
+                
+                // 检查 getModule 方法是否存在
+                if (typeof neo4jEditor.getModule !== 'function') {
+                    throw new Error('neo4jEditor.getModule 方法不存在');
+                }
+                
+                // 直接定义一个简单的 eventBus 模块进行测试
+                neo4jEditor.define('testEventBus', [], function() {
+                    const module = {
+                        name: 'testEventBus',
+                        events: {},
+                        
+                        // 简化版的 on 方法
+                        on: function(eventName, callback) {
+                            if (!this.events[eventName]) {
+                                this.events[eventName] = [];
+                            }
+                            this.events[eventName].push(callback);
+                            log(`已订阅事件: ${eventName}`);
+                        },
+                        
+                        // 简化版的 emit 方法
+                        emit: function(eventName, data) {
+                            log(`发布事件: ${eventName}`, data);
+                            if (this.events[eventName]) {
+                                this.events[eventName].forEach(callback => {
+                                    try {
+                                        callback(eventName, data);
+                                    } catch (e) {
+                                        console.error('事件处理器错误:', e);
+                                    }
+                                });
+                            }
+                        }
+                    };
+                    return module;
+                });
+                
+                log('已定义 testEventBus 模块');
+                
+                // 获取 testEventBus 模块
+                const eventBus = neo4jEditor.getModule('testEventBus');
+                
+                if (!eventBus) {
+                    throw new Error('无法获取 testEventBus 模块');
+                }
+                
+                log('已获取 testEventBus 模块');
+                
+                // 订阅测试事件
+                eventBus.on('test:event1', function(event, data) {
+                    log(`收到事件 event1: ${JSON.stringify(data)}`);
+                });
+                
+                eventBus.on('test:event2', function(event, data) {
+                    log(`收到事件 event2: ${JSON.stringify(data)}`);
+                });
+                
+                // 触发测试事件
+                eventBus.emit('test:event1', { message: 'Hello from event1' });
+                eventBus.emit('test:event2', { message: 'Hello from event2', timestamp: Date.now() });
+                
+                document.getElementById('status').className = 'success';
+                document.getElementById('status').textContent = 'EventBus 测试成功！';
+                log('EventBus 测试完成');
+            } catch (error) {
+                document.getElementById('status').className = 'error';
+                document.getElementById('status').textContent = '错误: ' + error.message;
+                log('错误: ' + error.message);
+                console.error('测试失败:', error);
+            }
+        });
+        
+        // 页面加载完成
+        window.addEventListener('load', function() {
+            log('页面加载完成');
+            document.getElementById('status').className = 'success';
+            document.getElementById('status').textContent = '页面加载完成，点击按钮开始测试';
+        });
+    </script>
+</body>
+</html>

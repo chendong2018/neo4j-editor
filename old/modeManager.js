@@ -14,47 +14,61 @@ window.selectedRelationshipType = null;
  * @param {string} mode - 模式名称 ('select', 'node', 'relationship')
  */
 window.setMode = function(mode) {
-    // 更新模式
-    window.currentMode = mode;
-    window.lastModeChange = { mode: mode, time: new Date().toISOString() };
-    
-    // 重置按钮状态
-    resetModeButtons();
-    
-    // 设置活动按钮
-    var buttonMap = {
-        'select': 'select-mode-btn',
-        'node': 'node-mode-btn',
-        'relationship': 'relationship-mode-btn'
-    };
-    
-    var activeBtnId = buttonMap[mode];
-    var activeBtn = document.getElementById(activeBtnId);
-    if (activeBtn) {
-        // 兼容classList操作
-        if (activeBtn.className.indexOf('active') === -1) {
-            activeBtn.className += ' active';
+    try {
+        console.log('Mode Manager: setMode called with mode:', mode);
+        if (!mode) {
+            console.error('Mode Manager: Invalid mode parameter');
+            return;
         }
-        if (activeBtn.className.indexOf('bg-accent') === -1) {
-            activeBtn.className += ' bg-accent';
+        
+        // 更新模式
+        console.log('Mode Manager: Setting window.currentMode from', window.currentMode || 'undefined', 'to', mode);
+        window.currentMode = mode;
+        window.lastModeChange = { mode: mode, time: new Date().toISOString() };
+        
+        // 重置按钮状态
+        console.log('Mode Manager: Resetting mode buttons');
+        resetModeButtons();
+        
+        // 设置活动按钮
+        console.log('Mode Manager: Setting active button for mode:', mode);
+        var buttonMap = {
+            'select': 'select-mode-btn',
+            'node': 'node-mode-btn',
+            'relationship': 'relationship-mode-btn'
+        };
+        
+        var activeBtnId = buttonMap[mode];
+        var activeBtn = document.getElementById(activeBtnId);
+        if (activeBtn) {
+            // 兼容classList操作
+            if (activeBtn.className.indexOf('active') === -1) {
+                activeBtn.className += ' active';
+            }
+            if (activeBtn.className.indexOf('bg-accent') === -1) {
+                activeBtn.className += ' bg-accent';
+            }
         }
-    }
-    
-    // 根据模式设置光标和行为
-    if (mode === 'select') {
-        setDefaultCursor();
-        window.sourceNode = null;
-        reinstallAllTapListeners();
-        window.showToast && window.showToast('选择模式已激活');
-    } else if (mode === 'node') {
-        setCrosshairCursor();
-        reinstallAllTapListeners();
-        window.showToast && window.showToast('节点创建模式已激活！点击画布任意位置创建节点');
-    } else if (mode === 'relationship') {
-        setPointerCursor();
-        window.sourceNode = null;
-        reinstallAllTapListeners();
-        window.showToast && window.showToast('关系创建模式已激活 - 点击节点创建关系');
+        
+        // 根据模式设置光标和行为
+        console.log('Mode Manager: Setting cursor and behavior for mode:', mode);
+        if (mode === 'select') {
+            setDefaultCursor();
+            window.sourceNode = null;
+            reinstallAllTapListeners();
+            window.showToast && window.showToast('选择模式已激活');
+        } else if (mode === 'node') {
+            setCrosshairCursor();
+            reinstallAllTapListeners();
+            window.showToast && window.showToast('节点创建模式已激活！点击画布任意位置创建节点');
+        } else if (mode === 'relationship') {
+            setPointerCursor();
+            window.sourceNode = null;
+            reinstallAllTapListeners();
+            window.showToast && window.showToast('关系创建模式已激活 - 点击节点创建关系');
+        }
+    } catch (error) {
+        console.error('Error in setMode:', error);
     }
 }
 
@@ -137,14 +151,20 @@ function setCursorForAllContainers(cursorType) {
  * 重新安装所有点击监听器
  */
 window.reinstallAllTapListeners = function() {
+    console.log('Mode Manager: reinstallAllTapListeners called');
+    console.log('Mode Manager: Current window.currentMode:', window.currentMode);
+    
     // 为Tree视图重新安装监听器
+    console.log('Mode Manager: Reinstalling listener for Tree view');
     reinstallListener(window.cyTree, 'Tree');
     
     // 为Network视图重新安装监听器
+    console.log('Mode Manager: Reinstalling listener for Network view');
     reinstallListener(window.cyNetwork, 'Network');
     
     // 为Main视图重新安装监听器（如果存在）
     if (window.cy && window.cy !== window.cyTree && window.cy !== window.cyNetwork) {
+        console.log('Mode Manager: Reinstalling listener for Main view');
         reinstallListener(window.cy, 'Main');
     }
 }
@@ -155,46 +175,64 @@ window.reinstallAllTapListeners = function() {
  * @param {string} viewName - 视图名称
  */
 function reinstallListener(instance, viewName) {
+    console.log('Mode Manager: reinstallListener called for', viewName, 'view');
     if (!instance) {
+        console.error('Mode Manager: No instance provided for', viewName, 'view');
         return;
     }
     
     try {
         // 移除现有的监听器
+        console.log('Mode Manager: Removing existing tap listeners for', viewName, 'view');
         instance.off('tap');
         instance.off('tapselect');
         instance.off('click');
+        console.log('Mode Manager: Removed existing tap listeners for', viewName, 'view');
         
         // 根据当前模式添加相应的监听器
-        if (window.currentMode === 'node') {
+        const currentMode = window.currentMode || 'select';
+        console.log('Mode Manager: Current mode for', viewName, 'view:', currentMode);
+        
+        if (currentMode === 'node') {
+            console.log('Mode Manager: Adding node creation tap listener for', viewName, 'view');
             instance.on('tap', function(event) {
+                console.log('Mode Manager:', viewName, 'view tap event in node mode');
                 const target = event.target;
+                console.log('Mode Manager:', viewName, 'view event.target is instance:', target === instance);
+                
                 // 只有点击背景时才创建节点
                 if (target === instance) {
+                    console.log('Mode Manager:', viewName, 'view - canvas background tapped, creating node');
                     handleNodeCreationTap(instance, event);
                 }
             });
-        } else if (window.currentMode === 'relationship') {
+            console.log('Mode Manager: Node creation tap listener successfully added for', viewName, 'view');
+        } else if (currentMode === 'relationship') {
+            console.log('Mode Manager: Adding relationship creation tap listener for', viewName, 'view');
             instance.on('tap', function(event) {
                 const target = event.target;
                 // 安全检查：确保target有isNode方法
                 if (target && typeof target.isNode === 'function' && target.isNode()) {
+                    console.log('Mode Manager:', viewName, 'view - Relationship mode: Node clicked', target.id());
                     handleRelationshipCreationTap(instance, target, event);
                 }
             });
-        } else if (window.currentMode === 'select') {
+        } else if (currentMode === 'select') {
+            console.log('Mode Manager: Setting up select mode tap listener for', viewName, 'view');
             // 选择模式只需要默认的选择行为
             // 确保选择状态正确同步
             instance.on('tapselect', function(event) {
                 const target = event.target;
                 // 安全检查：确保target有相应的方法
                 if (target && (typeof target.isNode === 'function' && target.isNode() || typeof target.isEdge === 'function' && target.isEdge())) {
+                    console.log('Mode Manager:', viewName, 'view - Selecting element:', target.id());
                     synchronizeSelection(target, instance);
                 }
             });
         }
         
     } catch (err) {
+        console.error('Mode Manager: Error reinstalling tap listener for', viewName, 'view:', err);
         window.handleError && window.handleError(err, `Error reinstalling tap listener for ${viewName} view`);
     }
 }
@@ -205,31 +243,49 @@ function reinstallListener(instance, viewName) {
  * @param {Object} event - 事件对象
  */
 function handleNodeCreationTap(instance, event) {
+    console.log('Mode Manager: handleNodeCreationTap called');
     try {
         const position = event.position || event.cyPosition;
+        console.log('Mode Manager: Tap position:', position);
         
-        // 优先使用window.selectedNodeType，如果没有则从UI获取当前选中的节点类型
-        let nodeType = window.selectedNodeType;
-        if (!nodeType) {
-            const activeNodeTypeBtn = document.querySelector('.node-type-btn.active');
-            nodeType = activeNodeTypeBtn ? activeNodeTypeBtn.getAttribute('data-type') : 'Generic';
+        if (!position) {
+            console.error('Mode Manager: No position information in event');
+            return;
         }
         
-        console.log('Selected node type for creation:', nodeType);
+        // 优先使用window.selectedNodeType，如果没有则从UI获取当前选中的节点类型
+        console.log('Mode Manager: Checking for selectedNodeType');
+        let nodeType = window.selectedNodeType;
+        if (!nodeType) {
+            console.log('Mode Manager: No selectedNodeType, checking UI for active node type button');
+            const activeNodeTypeBtn = document.querySelector('.node-type-btn.active');
+            nodeType = activeNodeTypeBtn ? activeNodeTypeBtn.getAttribute('data-type') : 'Generic';
+            console.log('Mode Manager: Found node type from UI:', nodeType);
+        } else {
+            console.log('Mode Manager: Using node type from selectedNodeType:', nodeType);
+        }
+        
+        console.log('Mode Manager: Selected node type for creation:', nodeType);
         
         // 创建默认属性对象并应用节点类型的默认属性
+        console.log('Mode Manager: Creating default properties');
         const defaultProperties = {};
+        
+        console.log('Mode Manager: Checking for node type configuration');
         const nodeTypeConfig = window.nodeTypeStyles && window.nodeTypeStyles[nodeType];
         if (nodeTypeConfig && nodeTypeConfig.properties) {
-          nodeTypeConfig.properties.forEach(prop => {
-            if (prop.key) {
-                // 支持value字段作为默认值
-                defaultProperties[prop.key] = prop.defaultValue !== undefined ? prop.defaultValue : (prop.value !== undefined ? prop.value : '');
-            }
-          });
+            console.log('Mode Manager: Applying default properties from node type config');
+            nodeTypeConfig.properties.forEach(prop => {
+                if (prop.key) {
+                    // 支持value字段作为默认值
+                    defaultProperties[prop.key] = prop.defaultValue !== undefined ? prop.defaultValue : (prop.value !== undefined ? prop.value : '');
+                    console.log('Mode Manager: Added property:', prop.key, 'with value:', defaultProperties[prop.key]);
+                }
+            });
         }
         
         // 创建新节点，确保使用节点类型作为label和type
+        console.log('Mode Manager: Generating node ID');
         const newNode = {
             group: 'nodes',
             data: {
@@ -242,18 +298,22 @@ function handleNodeCreationTap(instance, event) {
             position: position
         };
         
-        console.log('Creating new node with data:', newNode.data);
+        console.log('Mode Manager: Creating new node with data:', newNode.data);
         
         // 添加到所有视图
+        console.log('Mode Manager: Adding node to views');
         const success = addNodeToViews(newNode);
         
         if (success) {
+            console.log('Mode Manager: Node added successfully');
             debugLog('Created new node: ' + newNode.data.id + ' with type: ' + nodeType);
-            window.showToast('Created node of type: ' + nodeType, 'success');
+            window.showToast && window.showToast('Created node of type: ' + nodeType, 'success');
         } else {
-            window.showToast('Failed to add node to views', 'error');
+            console.error('Mode Manager: Failed to add node to views');
+            window.showToast && window.showToast('Failed to add node to views', 'error');
         }
     } catch (error) {
+        console.error('Mode Manager: Error in handleNodeCreationTap:', error);
         handleError('Error creating node', error);
     }
 }
@@ -452,5 +512,68 @@ function updateRelationshipPropertiesPanel(edgeData) {
         }
     } catch (error) {
         handleError('Error updating relationship properties panel', error);
+    }
+}
+
+/**
+ * 将节点添加到所有视图
+ * @param {Object} nodeData - 节点数据
+ * @returns {boolean} 添加是否成功
+ */
+function addNodeToViews(nodeData) {
+    console.log('Mode Manager: addNodeToViews called with node data:', nodeData.data);
+    try {
+        // 检查必要的实例是否存在
+        console.log('Mode Manager: Checking available Cytoscape instances');
+        console.log('Mode Manager: window.cy exists:', !!window.cy);
+        console.log('Mode Manager: window.cyTree exists:', !!window.cyTree);
+        console.log('Mode Manager: window.cyNetwork exists:', !!window.cyNetwork);
+        
+        if (!window.cy && !window.cyTree && !window.cyNetwork) {
+            console.error('Mode Manager: No valid Cytoscape instances found');
+            return false;
+        }
+        
+        // 添加到各个视图
+        let addedToAtLeastOneView = false;
+        
+        if (window.cy) {
+            try {
+                console.log('Mode Manager: Attempting to add node to window.cy');
+                window.cy.add(nodeData);
+                console.log('Mode Manager: Node successfully added to window.cy');
+                addedToAtLeastOneView = true;
+            } catch (error) {
+                console.error('Mode Manager: Error adding node to main view:', error);
+            }
+        }
+        
+        if (window.cyTree && window.cyTree !== window.cy) {
+            try {
+                console.log('Mode Manager: Attempting to add node to window.cyTree');
+                window.cyTree.add(nodeData);
+                console.log('Mode Manager: Node successfully added to window.cyTree');
+                addedToAtLeastOneView = true;
+            } catch (error) {
+                console.error('Mode Manager: Error adding node to tree view:', error);
+            }
+        }
+        
+        if (window.cyNetwork && window.cyNetwork !== window.cy && window.cyNetwork !== window.cyTree) {
+            try {
+                console.log('Mode Manager: Attempting to add node to window.cyNetwork');
+                window.cyNetwork.add(nodeData);
+                console.log('Mode Manager: Node successfully added to window.cyNetwork');
+                addedToAtLeastOneView = true;
+            } catch (error) {
+                console.error('Mode Manager: Error adding node to network view:', error);
+            }
+        }
+        
+        console.log('Mode Manager: addNodeToViews result - added to at least one view:', addedToAtLeastOneView);
+        return addedToAtLeastOneView;
+    } catch (error) {
+        console.error('Mode Manager: Error in addNodeToViews:', error);
+        return false;
     }
 }

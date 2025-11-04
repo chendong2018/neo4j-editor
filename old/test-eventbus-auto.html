@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventBus 自动测试 - Neo4j Editor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .warning {
+            color: orange;
+            font-weight: bold;
+        }
+        #status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        #event-logs {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            background-color: #f5f5f5;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .test-passed {
+            color: green;
+        }
+        .test-failed {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>EventBus 功能自动测试</h1>
+    <div id="status" class="warning">正在加载...</div>
+    
+    <div id="event-logs">
+        [日志] 测试启动中...
+    </div>
+    
+    <script src="js/main.js"></script>
+    <script>
+        // 测试结果
+        const testResults = {
+            total: 0,
+            passed: 0,
+            failed: 0,
+            startTime: null,
+            endTime: null
+        };
+        
+        // 记录日志
+        function log(message) {
+            const logsContainer = document.getElementById('event-logs');
+            const logEntry = `[${new Date().toLocaleTimeString()}] ${message}\n`;
+            logsContainer.textContent += logEntry;
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+            console.log(message);
+        }
+        
+        // 测试函数
+        function runTest(name, testFn) {
+            testResults.total++;
+            log(`\n开始测试: ${name}`);
+            
+            try {
+                const result = testFn();
+                if (result instanceof Promise) {
+                    return result.then(() => {
+                        testResults.passed++;
+                        log(`✓ 测试通过: ${name}`);
+                        return true;
+                    }).catch(error => {
+                        testResults.failed++;
+                        log(`✗ 测试失败: ${name} - ${error.message}`);
+                        console.error(error);
+                        return false;
+                    });
+                } else {
+                    testResults.passed++;
+                    log(`✓ 测试通过: ${name}`);
+                    return Promise.resolve(true);
+                }
+            } catch (error) {
+                testResults.failed++;
+                log(`✗ 测试失败: ${name} - ${error.message}`);
+                console.error(error);
+                return Promise.resolve(false);
+            }
+        }
+        
+        // 更新测试状态
+        function updateTestStatus() {
+            const statusEl = document.getElementById('status');
+            
+            if (testResults.failed > 0) {
+                statusEl.className = 'error';
+                statusEl.textContent = `测试失败: 通过 ${testResults.passed}/${testResults.total}`;
+            } else if (testResults.total > 0) {
+                statusEl.className = 'success';
+                statusEl.textContent = `测试全部通过: ${testResults.passed}/${testResults.total}`;
+            }
+        }
+        
+        // 主测试函数
+        async function runAllTests() {
+            log('开始 EventBus 功能测试...');
+            testResults.startTime = Date.now();
+            
+            try {
+                // 测试1: 检查 neo4jEditor 对象是否存在
+                await runTest('neo4jEditor 对象检查', () => {
+                    if (!window.neo4jEditor) {
+                        throw new Error('neo4jEditor 对象未定义');
+                    }
+                    log('neo4jEditor 对象存在');
+                });
+                
+                // 测试2: 检查 getModule 方法是否存在
+                await runTest('getModule 方法检查', () => {
+                    if (typeof neo4jEditor.getModule !== 'function') {
+                        throw new Error('neo4jEditor.getModule 方法不存在');
+                    }
+                    log('getModule 方法存在');
+                });
+                
+                // 测试3: 检查 define 方法是否存在
+                await runTest('define 方法检查', () => {
+                    if (typeof neo4jEditor.define !== 'function') {
+                        throw new Error('neo4jEditor.define 方法不存在');
+                    }
+                    log('define 方法存在');
+                });
+                
+                // 测试4: 定义并获取测试模块
+                await runTest('模块定义和获取测试', () => {
+                    // 定义一个测试模块
+                    neo4jEditor.define('testModule', [], function() {
+                        return { name: 'testModule', value: 'test' };
+                    });
+                    
+                    // 获取测试模块
+                    const module = neo4jEditor.getModule('testModule');
+                    if (!module) {
+                        throw new Error('无法获取 testModule 模块');
+                    }
+                    if (module.name !== 'testModule' || module.value !== 'test') {
+                        throw new Error('模块内容不正确');
+                    }
+                    log('模块定义和获取成功');
+                });
+                
+                // 测试5: EventBus 订阅和发布测试
+                await runTest('EventBus 订阅和发布测试', () => {
+                    // 确保 eventBus 模块存在
+                    const eventBus = neo4jEditor.getModule('eventBus');
+                    if (!eventBus) {
+                        throw new Error('eventBus 模块未找到');
+                    }
+                    
+                    // 检查必要的方法
+                    if (typeof eventBus.on !== 'function' || typeof eventBus.emit !== 'function') {
+                        throw new Error('eventBus 缺少必要的方法');
+                    }
+                    
+                    return new Promise((resolve, reject) => {
+                        const testData = { message: 'Hello EventBus', timestamp: Date.now() };
+                        let eventReceived = false;
+                        
+                        // 订阅事件
+                        const handler = (eventName, data) => {
+                            log(`收到事件: ${eventName}, 数据: ${JSON.stringify(data)}`);
+                            
+                            if (eventName !== 'test:event' || JSON.stringify(data) !== JSON.stringify(testData)) {
+                                reject(new Error('事件数据不匹配'));
+                                return;
+                            }
+                            
+                            eventReceived = true;
+                            
+                            // 检查是否支持取消订阅
+                            if (typeof eventBus.off === 'function') {
+                                eventBus.off('test:event', handler);
+                                log('事件取消订阅成功');
+                            }
+                            
+                            resolve();
+                        };
+                        
+                        eventBus.on('test:event', handler);
+                        log('事件订阅成功');
+                        
+                        // 发布事件
+                        setTimeout(() => {
+                            eventBus.emit('test:event', testData);
+                            log('事件发布成功');
+                        }, 100);
+                        
+                        // 设置超时
+                        setTimeout(() => {
+                            if (!eventReceived) {
+                                reject(new Error('超时：未收到事件'));
+                            }
+                        }, 1000);
+                    });
+                });
+                
+                // 测试6: 多处理器测试
+                await runTest('EventBus 多处理器测试', () => {
+                    const eventBus = neo4jEditor.getModule('eventBus');
+                    if (!eventBus) {
+                        throw new Error('eventBus 模块未找到');
+                    }
+                    
+                    return new Promise((resolve, reject) => {
+                        let handlersCalled = 0;
+                        const totalHandlers = 3;
+                        
+                        // 创建多个处理器
+                        const handlers = [];
+                        for (let i = 0; i < totalHandlers; i++) {
+                            const handler = (eventName, data) => {
+                                log(`处理器 ${i+1} 收到事件: ${eventName}`);
+                                handlersCalled++;
+                                
+                                if (handlersCalled === totalHandlers) {
+                                    resolve();
+                                }
+                            };
+                            handlers.push(handler);
+                            eventBus.on('test:multi', handler);
+                        }
+                        
+                        // 发布事件
+                        setTimeout(() => {
+                            eventBus.emit('test:multi', { test: 'multi' });
+                        }, 100);
+                        
+                        // 设置超时
+                        setTimeout(() => {
+                            reject(new Error(`超时：只有 ${handlersCalled}/${totalHandlers} 个处理器被调用`));
+                        }, 1000);
+                    });
+                });
+                
+                log('\n所有测试完成！');
+                testResults.endTime = Date.now();
+                log(`测试时间: ${(testResults.endTime - testResults.startTime)}ms`);
+                log(`测试结果: 通过 ${testResults.passed}/${testResults.total}, 失败 ${testResults.failed}`);
+                
+            } catch (error) {
+                log('测试执行错误:', error.message);
+            } finally {
+                updateTestStatus();
+            }
+        }
+        
+        // 等待文档加载完成后自动运行测试
+        window.addEventListener('load', function() {
+            log('页面加载完成，开始自动测试...');
+            document.getElementById('status').textContent = '正在运行测试...';
+            
+            // 给一点时间让main.js初始化
+            setTimeout(runAllTests, 500);
+        });
+    </script>
+</body>
+</html>

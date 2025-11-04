@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试测试页面</title>
+    <script src="cytoscape.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .logs {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        #cy-test {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Neo4j Editor 调试测试</h1>
+        
+        <h3>模块加载测试</h3>
+        <button class="btn" onclick="testModuleLoading()">测试模块加载</button>
+        <button class="btn" onclick="testEventSystems()">测试事件系统</button>
+        <button class="btn" onclick="testModeChange()">测试模式切换</button>
+        <button class="btn" onclick="testTapListeners()">测试点击监听器</button>
+        <button class="btn" onclick="clearLogs()">清空日志</button>
+        
+        <div id="cy-test"></div>
+        
+        <h3>日志输出:</h3>
+        <div id="logs" class="logs"></div>
+    </div>
+    
+    <script>
+        // 全局日志函数，同时输出到控制台和页面
+        function log(message) {
+            const timestamp = new Date().toISOString().split('T')[1];
+            const logMessage = `[${timestamp}] ${message}`;
+            console.log(logMessage);
+            
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML += logMessage + '\n';
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        // 重写console.log以捕获所有日志
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+            ).join(' ');
+            log(`CONSOLE: ${message}`);
+        };
+        
+        // 重写console.error以捕获所有错误
+        const originalConsoleError = console.error;
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+            ).join(' ');
+            log(`ERROR: ${message}`);
+        };
+        
+        // 测试模块加载
+        function testModuleLoading() {
+            log('开始测试模块加载...');
+            
+            // 检查全局对象
+            log('window对象存在:', typeof window !== 'undefined');
+            log('document对象存在:', typeof document !== 'undefined');
+            log('cytoscape存在:', typeof cytoscape !== 'undefined');
+            
+            // 测试window.currentMode初始化
+            if (window.currentMode === undefined) {
+                window.currentMode = 'select';
+                log('初始化window.currentMode为 "select"');
+            } else {
+                log('当前window.currentMode值:', window.currentMode);
+            }
+            
+            // 检查neo4jEditor对象
+            log('neo4jEditor存在:', typeof neo4jEditor !== 'undefined');
+            if (typeof neo4jEditor !== 'undefined') {
+                log('neo4jEditor模块列表:', Object.keys(neo4jEditor));
+                log('graphManager存在:', typeof neo4jEditor.graphManager !== 'undefined');
+                log('toolbarManager存在:', typeof neo4jEditor.toolbarManager !== 'undefined');
+                log('eventManager存在:', typeof neo4jEditor.eventManager !== 'undefined');
+                log('eventBus存在:', typeof neo4jEditor.eventBus !== 'undefined');
+            }
+            
+            // 检查工具函数
+            log('generateId函数存在:', typeof window.generateId !== 'undefined');
+            
+            log('模块加载测试完成');
+        }
+        
+        // 测试事件系统
+        function testEventSystems() {
+            log('开始测试事件系统...');
+            
+            // 测试DOM事件
+            const testEvent = new CustomEvent('test:debug', { detail: { test: 'value' } });
+            document.dispatchEvent(testEvent);
+            log('已触发DOM测试事件');
+            
+            // 监听DOM事件
+            document.addEventListener('test:debug', function(e) {
+                log('接收到DOM测试事件:', e.detail);
+            });
+            
+            // 测试工具栏事件
+            const toolbarEvent = new CustomEvent('toolbar:activeToolChanged', {
+                detail: { toolKey: 'addNode' }
+            });
+            document.dispatchEvent(toolbarEvent);
+            log('已触发toolbar:activeToolChanged DOM事件');
+            
+            // 测试window.currentMode设置
+            window.currentMode = 'node';
+            log('设置window.currentMode为 "node"');
+            
+            log('事件系统测试完成');
+        }
+        
+        // 测试模式切换
+        function testModeChange() {
+            log('开始测试模式切换...');
+            
+            // 直接设置模式并触发事件
+            log('设置window.currentMode为 "node"');
+            window.currentMode = 'node';
+            
+            // 模拟工具栏设置活动工具
+            if (typeof neo4jEditor !== 'undefined' && neo4jEditor.toolbarManager) {
+                log('尝试调用toolbarManager.setActiveTool');
+                try {
+                    if (typeof neo4jEditor.toolbarManager.setActiveTool === 'function') {
+                        neo4jEditor.toolbarManager.setActiveTool('addNode');
+                    } else {
+                        log('toolbarManager.setActiveTool不是函数');
+                    }
+                } catch (e) {
+                    log('调用toolbarManager.setActiveTool出错:', e.message);
+                }
+            }
+            
+            log('模式切换测试完成');
+        }
+        
+        // 创建测试Cytoscape实例并测试点击监听器
+        let cyTestInstance = null;
+        
+        function testTapListeners() {
+            log('开始测试点击监听器...');
+            
+            // 创建或获取Cytoscape实例
+            if (!cyTestInstance) {
+                log('创建测试Cytoscape实例');
+                const container = document.getElementById('cy-test');
+                
+                cyTestInstance = cytoscape({
+                    container: container,
+                    style: [
+                        {
+                            selector: 'node',
+                            style: {
+                                'background-color': '#388bff',
+                                'label': 'data(label)',
+                                'color': '#fff',
+                                'text-valign': 'center',
+                                'text-halign': 'center'
+                            }
+                        },
+                        {
+                            selector: 'edge',
+                            style: {
+                                'width': 3,
+                                'line-color': '#32ade6',
+                                'target-arrow-color': '#32ade6',
+                                'target-arrow-shape': 'triangle'
+                            }
+                        }
+                    ],
+                    elements: {
+                        nodes: [
+                            { data: { id: 'test1', label: '测试节点' } }
+                        ],
+                        edges: []
+                    },
+                    layout: {
+                        name: 'grid',
+                        rows: 1
+                    }
+                });
+            }
+            
+            // 添加点击事件监听器
+            cyTestInstance.off('tap click'); // 移除现有监听器
+            
+            cyTestInstance.on('tap', function(evt) {
+                log('测试Cytoscape实例接收到tap事件:', {
+                    target: evt.target === cyTestInstance ? 'canvas' : evt.target.id(),
+                    position: evt.position
+                });
+                
+                // 如果点击背景且处于节点模式，尝试创建节点
+                if (evt.target === cyTestInstance && window.currentMode === 'node') {
+                    log('在节点模式下点击画布背景，尝试创建节点');
+                    
+                    // 创建新节点
+                    const newNode = {
+                        data: {
+                            id: 'new-node-' + Date.now(),
+                            label: '新节点'
+                        },
+                        position: evt.position
+                    };
+                    
+                    cyTestInstance.add(newNode);
+                    log('已创建新节点:', newNode.data.id);
+                }
+            });
+            
+            cyTestInstance.on('click', function(evt) {
+                log('测试Cytoscape实例接收到click事件:', {
+                    target: evt.target === cyTestInstance ? 'canvas' : evt.target.id()
+                });
+            });
+            
+            log('已添加点击监听器，请点击上方画布测试');
+            log('当前模式:', window.currentMode);
+        }
+        
+        // 清空日志
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            log('日志已清空');
+        }
+        
+        // 页面加载时执行基本测试
+        window.addEventListener('load', function() {
+            log('页面加载完成，开始基本检查...');
+            testModuleLoading();
+            
+            // 监听全局错误
+            window.addEventListener('error', function(e) {
+                log('捕获到全局错误:', e.message, '在', e.filename, '第', e.lineno, '行');
+            });
+            
+            // 监听未处理的Promise错误
+            window.addEventListener('unhandledrejection', function(e) {
+                log('捕获到未处理的Promise错误:', e.reason);
+            });
+        });
+    </script>
+</body>
+</html>
