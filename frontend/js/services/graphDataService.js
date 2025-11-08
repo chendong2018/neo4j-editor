@@ -2,7 +2,9 @@
  * 图数据服务类
  * 负责管理节点和关系数据，并自动维护索引以提高查询性能
  * 支持双视图功能：层级树视图和同父关系网视图
+ * 合并了GraphService的上下文管理和数据导入导出功能
  */
+// GraphUtils通过全局变量访问
 class GraphDataService {
   constructor(options = {}) {
     this.nodes = new Map();
@@ -12,6 +14,16 @@ class GraphDataService {
       relationshipsByType: {}
     };
     
+    // 事件总线引用
+    this.eventBus = options.eventBus;
+    
+    if (!this.eventBus) {
+      throw new Error('事件总线不能为空');
+    }
+    
+    // 事件监听器存储
+    this._listeners = {};
+    
     // 双视图配置选项
     this.options = {
       // 层级树创建时是否自动连同父兄弟
@@ -20,6 +32,89 @@ class GraphDataService {
       autoConnectOnMove: false,
       ...options
     };
+    
+    // 上下文管理
+    this.contextId = null;
+    
+    // 初始化ID生成器
+    this.nodeIdCounter = 1;
+    this.relationshipIdCounter = 1;
+    
+    // 支持的关系类型
+    this.relationshipTypes = new Set(['CHILD_OF', 'RELATES_TO']);
+  }
+  
+  /**
+   * 生成唯一ID
+   * @param {string} prefix - ID前缀
+   * @returns {string} 唯一ID
+   */
+  _generateId(prefix) {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    
+    if (prefix === 'node') {
+      return `node_${timestamp}_${this.nodeIdCounter++}_${random}`;
+    } else if (prefix === 'rel') {
+      return `rel_${timestamp}_${this.relationshipIdCounter++}_${random}`;
+    }
+    
+    return `${prefix}_${timestamp}_${random}`;
+  }
+  
+  /**
+   * 初始化数据服务
+   */
+  init() {
+    console.log('[GraphDataService] 初始化数据服务...');
+    // 发布初始化完成事件
+    this._emit('initialized');
+  }
+  
+  /**
+   * 注册事件监听器
+   */
+  on(eventName, callback) {
+    if (!this._listeners[eventName]) {
+      this._listeners[eventName] = [];
+    }
+    this._listeners[eventName].push(callback);
+    return this;
+  }
+  
+  /**
+   * 移除事件监听器
+   */
+  off(eventName, callback) {
+    if (this._listeners[eventName]) {
+      if (callback) {
+        this._listeners[eventName] = this._listeners[eventName].filter(cb => cb !== callback);
+      } else {
+        delete this._listeners[eventName];
+      }
+    }
+    return this;
+  }
+  
+  /**
+   * 触发内部事件
+   */
+  _emit(eventName, ...args) {
+    // 触发内部事件监听器
+    if (this._listeners[eventName]) {
+      this._listeners[eventName].forEach(callback => {
+        try {
+          callback(...args);
+        } catch (error) {
+          console.error(`[Error] 事件监听器执行错误: ${eventName}`, error);
+        }
+      });
+    }
+    
+    // 如果有事件总线引用，也发布到全局事件总线
+    if (this.eventBus) {
+      this.eventBus.emit(eventName, ...args);
+    }
   }
   
   /**
@@ -27,22 +122,59 @@ class GraphDataService {
    * @param node 节点对象
    */
   addNode(node) {
+    // 如果没有提供ID，生成一个
+    if (!node.id) {
+      node.id = GraphUtils.generateNodeId();
+    }
+    
+    // 如果没有提供属性，初始化为空对象
+    if (!node.properties) {
+      node.properties = {};
+    }
+    
     if (this.nodes.has(node.id)) {
       console.warn(`节点 ${node.id} 已存在，将被覆盖`);
     }
+    
+    const existingNode = this.nodes.get(node.id);
     this.nodes.set(node.id, node);
+    
     // 初始化节点的关系列表（如果不存在）
     if (!this.index.nodeToRelationships[node.id]) {
       this.index.nodeToRelationships[node.id] = [];
     }
+    
+    // 如果有parentId，创建CHILD_OF关系
+    if (node.parentId && node.parentId !== 'root') {
+      try {
+        this.addChildOf(node.id, node.parentId);
+        
+        // 如果配置了自动连接兄弟节点，在创建时连接
+        if (this.options.autoConnectInTreeCreation) {
+          this._connectToSiblings(node.id, node.parentId);
+        }
+      } catch (error) {
+        console.error(`[Error] 为节点 ${node.id} 创建父子关系失败:`, error);
+      }
+    }
+    
+    // 发布节点添加事件
+    this._emit('nodeAdded', node.id);
+    this._emit('dataChanged');
+    console.log('Adding node:', node.id);
+    return node;
   }
   
   /**
    * 批量添加节点
-   * @param nodes 节点数组
+   * @param nodes 节点对象数组
    */
   addNodes(nodes) {
     nodes.forEach(node => this.addNode(node));
+    
+    // 批量添加完成后发布事件
+    this._emit('nodesAdded', nodes.map(node => node.id));
+    this._emit('dataChanged');
   }
   
   /**
@@ -68,8 +200,11 @@ class GraphDataService {
       return false;
     }
     
+    // 保存节点信息用于事件
+    const node = this.getNode(nodeId);
+    
     // 先删除与该节点相关的所有关系
-    const relationshipIds = this.index.nodeToRelationships[nodeId] || [];
+    const relationshipIds = [...(this.index.nodeToRelationships[nodeId] || [])];
     relationshipIds.forEach(relId => this.deleteRelationship(relId));
     
     // 删除节点
@@ -77,6 +212,10 @@ class GraphDataService {
     
     // 删除节点的索引条目
     delete this.index.nodeToRelationships[nodeId];
+    
+    // 发布节点删除事件
+    this._emit('nodeDeleted', nodeId);
+    this._emit('dataChanged');
     
     return true;
   }
@@ -107,6 +246,11 @@ class GraphDataService {
       relationship.id = GraphUtils.generateRelationshipId();
     }
     
+    // 如果没有提供属性，初始化为空对象
+    if (!relationship.properties) {
+      relationship.properties = {};
+    }
+    
     if (this.relationships.has(relationship.id)) {
       console.warn(`关系 ${relationship.id} 已存在，将被覆盖`);
     }
@@ -117,15 +261,46 @@ class GraphDataService {
     // 更新索引
     this.addRelationshipToIndex(relationship);
     
+    // 发布关系添加事件
+    this._emit('relationshipAdded', relationship.id);
+    this._emit('dataChanged');
+    
     return relationship;
   }
   
   /**
-   * 批量添加关系
-   * @param relationships 关系数组
+   * 添加父子关系（CHILD_OF）
+   * @param {string} childNodeId - 子节点ID
+   * @param {string} parentNodeId - 父节点ID
+   * @returns {Object} 创建的关系
    */
+  addChildOf(childNodeId, parentNodeId) {
+    // 验证两个节点存在
+    if (!this.nodes.has(childNodeId) || !this.nodes.has(parentNodeId)) {
+      throw new Error('子节点或父节点不存在');
+    }
+    
+    // 创建CHILD_OF关系
+    const childOfRel = {
+      id: this._generateId('rel'),
+      type: 'CHILD_OF',
+      startNodeId: childNodeId,
+      endNodeId: parentNodeId,
+      properties: {}
+    };
+    
+    this.addRelationship(childOfRel);
+    return childOfRel;
+  }
+  
+  /**
+  */
   addRelationships(relationships) {
     relationships.forEach(rel => this.addRelationship(rel));
+    
+    // 批量添加完成后发布事件
+    this._emit('relationshipsAdded', relationships.map(rel => rel.id));
+    this._emit('dataChanged');
   }
   
   /**
@@ -190,6 +365,10 @@ class GraphDataService {
     
     // 删除关系
     this.relationships.delete(relId);
+    
+    // 发布关系删除事件
+    this._emit('relationshipDeleted', relId);
+    this._emit('dataChanged');
     
     return true;
   }
@@ -347,6 +526,80 @@ class GraphDataService {
     this.index = {
       nodeToRelationships: {},
       relationshipsByType: {}
+    };
+    this.contextId = null;
+    
+    // 发出数据清空事件
+    if (this.eventBus) {
+      this.eventBus.emit('dataCleared');
+    }
+  }
+  
+  /**
+   * 设置上下文节点
+   * @param {string|null} nodeId - 上下文节点ID
+   */
+  setContext(nodeId) {
+    this.contextId = nodeId;
+    
+    // 发出上下文变更事件
+    if (this.eventBus) {
+      this.eventBus.emit('contextChanged', nodeId);
+    }
+  }
+  
+  /**
+   * 获取当前上下文节点
+   * @returns {string|null} 上下文节点ID
+   */
+  getContext() {
+    return this.contextId;
+  }
+  
+  /**
+   * 获取上下文中的节点和关系
+   * 如果有上下文，则返回上下文节点及其直接相关的节点和关系
+   * 如果没有上下文，则返回所有节点和关系
+   * @returns {Object} 包含nodes和relationships的对象
+   */
+  getContextData() {
+    // 如果没有上下文，返回所有数据
+    if (!this.contextId) {
+      return {
+        nodes: this.getAllNodes(),
+        relationships: this.getAllRelationships()
+      };
+    }
+    
+    // 获取上下文节点
+    const contextNode = this.getNode(this.contextId);
+    if (!contextNode) {
+      return { nodes: [], relationships: [] };
+    }
+    
+    // 获取相关的节点和关系
+    const contextNodes = new Set([contextNode.id]);
+    const contextRelationships = [];
+    
+    // 获取所有相关的关系
+    const allRelatedRelationships = this.getRelationshipsByNodeId(this.contextId);
+    
+    // 收集相关的节点ID和关系
+    for (const relId of allRelatedRelationships) {
+      const rel = this.getRelationship(relId);
+      if (rel) {
+        contextRelationships.push(rel);
+        contextNodes.add(rel.startNodeId);
+        contextNodes.add(rel.endNodeId);
+      }
+    }
+    
+    // 获取节点对象
+    const nodes = Array.from(contextNodes).map(nodeId => this.getNode(nodeId)).filter(Boolean);
+    
+    return {
+      nodes,
+      relationships: contextRelationships
     };
   }
   
@@ -583,9 +836,14 @@ class GraphDataService {
     const children = [];
     const childOfRels = this.getRelationshipsByType('CHILD_OF') || [];
     
+    
     for (const relId of childOfRels) {
       const rel = this.getRelationship(relId);
       if (rel && rel.endNodeId === parentId) {
+        // console.log(`Found child relationship: ${rel}`);
+        // console.log(`Found child node: ${rel.startNodeId}`);
+        // const node=this.getNode(rel.startNodeId);
+        // console.log(`Found child node: ${node}`);
         children.push(rel.startNodeId);
       }
     }
@@ -716,7 +974,118 @@ class GraphDataService {
       }
     });
   }
+  
+  /**
+   * 导出数据为JSON格式
+   * @returns {string} JSON字符串
+   */
+  exportData() {
+    const data = {
+      nodes: this.getAllNodes(),
+      relationships: this.getAllRelationships(),
+      exportTime: new Date().toISOString(),
+      version: '1.0'
+    };
+    
+    return JSON.stringify(data, null, 2);
+  }
+  
+  /**
+   * 导入数据
+   * @param {string} jsonData - JSON格式的数据
+   * @returns {boolean} 是否导入成功
+   */
+  importData(jsonData) {
+    try {
+      const data = JSON.parse(jsonData);
+      
+      // 清空现有数据
+      this.clear();
+      
+      // 导入节点
+      if (Array.isArray(data.nodes)) {
+        for (const node of data.nodes) {
+          // 重新生成ID以避免冲突
+          const newNode = {
+            ...node,
+            id: this._generateId('node')
+          };
+          this.addNode(newNode);
+        }
+      }
+      
+      // 导入关系
+      if (Array.isArray(data.relationships)) {
+        for (const rel of data.relationships) {
+          // 查找对应的节点（可能需要映射ID）
+          // 这里简化处理，假设节点ID保持不变
+          if (this.nodes.has(rel.startNodeId) && this.nodes.has(rel.endNodeId)) {
+            const newRel = {
+              ...rel,
+              id: this._generateId('rel')
+            };
+            this.addRelationship(newRel);
+          }
+        }
+      }
+      
+      // 发出数据导入完成事件
+      if (this.eventBus) {
+        this.eventBus.emit('dataImported', this.getStats());
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('数据导入失败:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * 更新节点
+   * @param {string} nodeId - 节点ID
+   * @param {Object} updates - 更新数据
+   * @returns {Object|null} 更新后的节点或null
+   */
+  updateNode(nodeId, updates) {
+    const node = this.getNode(nodeId);
+    
+    if (!node) return null;
+    
+    // 更新节点数据
+    if (updates.labels) {
+      node.labels = updates.labels;
+    }
+    
+    if (updates.properties) {
+      node.properties = { ...node.properties, ...updates.properties };
+    }
+    
+    // 添加时间戳
+    if (!node.created_at) {
+      node.created_at = new Date().toISOString();
+    }
+    node.updated_at = new Date().toISOString();
+    
+    // 发出节点更新事件
+    this._emit('nodeUpdated', node);
+    this._emit('dataChanged');
+    
+    return node;
+  }
 }
 
 // 暴露到全局作用域
 window.GraphDataService = GraphDataService;
+
+// 导出模块（支持CommonJS）
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+  module.exports = GraphDataService;
+}
+
+// 导出模块（支持AMD）
+if (typeof define === 'function' && define.amd) {
+  define([], function() {
+    return GraphDataService;
+  });
+}

@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j 双画布图编辑器</title>
+    
+    <!-- 定义主渲染器实现 -->
+  
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .left-panel {
+            width: 280px;
+            background-color: #fff;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .mode-controls {
+            background-color: #fff;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .mode-btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .mode-btn:hover {
+            background-color: #e8e8e8;
+        }
+        
+        .mode-btn.active {
+            background-color: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+        
+        .relationship-type-selector {
+            margin-left: 10px;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            border-right: 1px solid #e0e0e0;
+        }
+        
+        .canvas-wrapper:last-child {
+            border-right: none;
+        }
+        
+        .canvas-title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #fafafa;
+        }
+        
+        .property-panel {
+            margin-top: 20px;
+        }
+        
+        .panel-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .property-item {
+            margin-bottom: 10px;
+        }
+        
+        .property-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+            display: block;
+        }
+        
+        .property-input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .property-input[readonly] {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+        }
+        
+        .empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .node-list {
+            margin-top: 20px;
+        }
+        
+        .node-item {
+            padding: 8px 12px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .node-item:hover {
+            background-color: #e8e8e8;
+        }
+        
+        .node-item.selected {
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196F3;
+        }
+        
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin: 0;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .modal-body {
+            margin-bottom: 20px;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .confirm-btn,
+        .cancel-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .confirm-btn {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+        }
+        
+        .confirm-btn:hover {
+            background-color: #1976D2;
+        }
+        
+        .cancel-btn {
+            background-color: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        
+        .cancel-btn:hover {
+            background-color: #e0e0e0;
+        }
+        
+        /* 树选择器样式 */
+        .tree-selector {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        .tree-node {
+            padding: 5px 0;
+            padding-left: 20px;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .tree-node.selected {
+            background-color: #e3f2fd;
+            border-radius: 4px;
+        }
+        
+        .tree-node.level-0 {
+            padding-left: 0;
+            font-weight: 500;
+        }
+        
+        .tree-node.level-1 {
+            padding-left: 20px;
+        }
+        
+        .tree-node.level-2 {
+            padding-left: 40px;
+        }
+        
+        .tree-node.level-3 {
+            padding-left: 60px;
+        }
+        
+        .tree-node.level-4 {
+            padding-left: 80px;
+        }
+        
+        /* 关系网查看器样式 */
+        .relations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .relation-card {
+            background-color: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .relation-card:hover {
+            background-color: #e3f2fd;
+            border-color: #2196F3;
+        }
+        
+        .relation-type {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        
+        .relation-node {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        /* 文件上传样式 */
+        .file-input-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .file-input-btn {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .file-input-btn:hover {
+            background-color: #45a049;
+        }
+        
+        #file-upload {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="left-panel">
+            <div class="panel-title">属性面板</div>
+            <div id="property-panel" class="property-panel">
+                <div class="empty-state">未选择任何对象</div>
+            </div>
+            
+            <div class="panel-title">操作历史</div>
+            <div id="history-panel" class="node-list">
+                <div class="empty-state">暂无操作历史</div>
+            </div>
+        </div>
+        
+        <div class="right-panel">
+            <div class="mode-controls">
+                <button id="select-mode-btn" class="mode-btn active" data-mode="select">选择模式</button>
+                <button id="node-mode-btn" class="mode-btn" data-mode="node">节点模式</button>
+                <button id="relationship-mode-btn" class="mode-btn" data-mode="relationship">关系模式</button>
+                <select id="relationship-type-selector" class="relationship-type-selector">
+                    <option value="CHILD_OF">CHILD_OF</option>
+                    <option value="RELATES_TO">RELATES_TO</option>
+                </select>
+            </div>
+            
+            <div class="canvas-container">
+                <div id="tree-canvas" class="canvas-wrapper">
+                    <div class="canvas-title">层级树视图</div>
+                    <canvas class="canvas"></canvas>
+                </div>
+                <div id="network-canvas" class="canvas-wrapper">
+                    <div class="canvas-title">关系网视图</div>
+                    <canvas class="canvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 节点移动对话框 -->
+    <div id="move-node-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">移动节点</h3>
+                <button class="close-btn" onclick="closeMoveNodeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>选择目标父节点：</p>
+                <div id="parent-selector" class="tree-selector"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn" onclick="closeMoveNodeModal()">取消</button>
+                <button class="confirm-btn" onclick="confirmMoveNode()">确定</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 关系网查看对话框 -->
+    <div id="network-view-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">关系网查看</h3>
+                <button class="close-btn" onclick="closeNetworkViewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="relations-container" class="relations-grid"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="confirm-btn" onclick="closeNetworkViewModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 文件导入容器 -->
+    <div class="file-input-container">
+        <input type="file" id="file-upload" accept=".json" />
+        <label for="file-upload" class="file-input-btn">导入图数据</label>
+    </div>
+    
+    <script src="js/utils/GraphUtils.js"></script>
+    <script src="js/services/graphDataService.js"></script>
+    <script type="module" src="js/common/EventBus.js"></script>
+
+    <script src="js/dualCanvas/ModeManager.js"></script>
+    <script src="js/dualCanvas/CanvasManager.js"></script>
+    <script src="js/dualCanvas/TreeCanvasManager.js"></script>
+    <script src="js/dualCanvas/NetworkCanvasManager.js"></script>
+    <script src="js/dualCanvas/ContextMenuManager.js"></script>
+    <script src="js/dualCanvas/DualCanvasManager.js"></script>
+    
+    <!-- 引入渲染器模块 -->
+    <script src="js/common/moduleLoader.js"></script>
+    <!-- <script src="js/common/utils.js"></script> -->
+    <!-- EventBus已经在之前引入，不需要重复引入 -->
+    <!-- 直接引入渲染器主入口，它会加载必要的依赖 -->
+    <!-- <script src="js/render/index.js"></script> -->
+    
+    <script>
+        // 使用render模块中的真实渲染器实现
+        class SimpleCanvasRenderer {
+            constructor() {
+                this.renderer = null;
+                this.container = null;
+                this.canvasType = 'network'; // 默认使用网络布局，可切换为'tree'
+            }
+            
+            async initialize(container, options = {}) {
+                this.container = container;
+                
+                // 基于容器ID或位置确定渲染器类型
+                const isTreeContainer = container.id && container.id.includes('tree');
+                console.log('isTreeContainer:', isTreeContainer);
+                this.canvasType = isTreeContainer ? 'tree' : 'network';
+                console.log('canvasType:', this.canvasType);
+                // 尝试创建主渲染器
+                try {
+                    // 确保事件总线存在
+                    const eventBus = options.eventBus || getEventBusInstance() || { on: () => {}, emit: () => {} };
+                    
+                    // 清除容器中的canvas元素，因为d3渲染器会创建自己的SVG元素
+                    const canvasElement = container.querySelector('canvas');
+                    if (canvasElement) {
+                        container.removeChild(canvasElement);
+                    }
+                    
+                    
+                    // 使用ES6动态导入方式加载渲染器模块
+                    const self = this; // 保存 this 引用
+
+                    // 动态导入渲染器模块
+                    async function loadRenderer() {
+                        try {
+                            // 使用ES6动态import导入渲染器模块
+
+                            console.log('Neo4jRenderers:', '  add Neo4jRenderers');
+                            const module = await import('./js/render/index.js');
+                            console.log('✅ 模块加载成功', module);
+                            const Neo4jRenderers = module.default;
+                            
+                            
+                            
+                            // 根据类型创建相应的渲染器
+                            if (self.canvasType === 'tree') {
+                                console.log('创建树渲染器...');
+                                self.renderer = Neo4jRenderers.createTreeCanvas(container, {
+                                    ...options,
+                                    eventBus
+                                });
+                                console.log('✅ 树渲染器创建成功', self.renderer);
+                            } else {
+                                console.log('创建网络渲染器...');
+                                self.renderer = Neo4jRenderers.createNetworkCanvas(container, {
+                                    ...options,
+                                    eventBus
+                                });
+                                console.log('✅ 网络渲染器创建成功', self.renderer);
+                            }
+                            
+                            // 如果渲染器需要显式初始化
+                            if (typeof self.renderer.init === 'function') {
+                                self.renderer.init();
+                            }
+                            
+                            // 触发“渲染器就绪”事件
+                            if (typeof self.onRendererReady === 'function') {
+                                self.onRendererReady(self.renderer);
+                            }
+                        } catch (err) {
+                            console.error(`❌ 加载渲染器模块或创建渲染器失败:`, err);
+                            self.renderer = self._createFallbackRenderer(container);
+                        }
+                    }
+                    
+                    // 启动加载渲染器
+                     await loadRenderer();
+                    // 启动加载渲染器，并处理结果
+                    // loadRenderer().then().catch(err => {
+                    // console.error('loadRenderer failed:', err);
+                    // this.renderer = this._createFallbackRenderer(container);
+                    // });
+                } catch (error) {
+                    console.error('创建主渲染器失败:', error);
+                    this.renderer = this._createFallbackRenderer(container);
+                }
+                
+                // 设置事件总线
+                this.eventBus = getEventBusInstance() || { on: () => {}, emit: () => {} };
+            }
+            
+            // 创建备用渲染器以防止模块加载失败
+            _createFallbackRenderer(container) {
+                console.warn('渲染器模块未正确加载，使用备用渲染器');
+                // 简单的Canvas渲染器作为备用
+                const canvas = container.querySelector('canvas') || container.appendChild(document.createElement('canvas'));
+                const ctx = canvas.getContext('2d');
+                
+                return {
+                    canvas,
+                    ctx,
+                    render: (data) => {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = '#f0f0f0';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = '#666';
+                        ctx.font = '14px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(`备用${this.canvasType === 'tree' ? '树' : '网络'}视图`, canvas.width / 2, canvas.height / 2);
+                    },
+                    resize: () => {
+                        const rect = canvas.parentElement.getBoundingClientRect();
+                        canvas.width = rect.width;
+                        canvas.height = rect.height;
+                    }
+                };
+            }
+            
+            resize() {
+                if (this.renderer && this.renderer.resize) {
+                    this.renderer.resize();
+                } else if (this.renderer && this.renderer.canvas) {
+                    const rect = this.renderer.canvas.parentElement.getBoundingClientRect();
+                    this.renderer.canvas.width = rect.width;
+                    this.renderer.canvas.height = rect.height;
+                }
+            }
+            
+            render(data, context = null) {
+                if (!this.renderer) {
+                    console.log("renderer:", this.renderer);
+                    console.error('渲染器未初始化');
+                    return;
+                }
+                
+                // 确保数据格式符合渲染器要求
+                const formattedData = this._formatDataForRenderer(data);
+                
+                // 调用渲染器的render方法
+                if (this.renderer.render) {
+                    if (this.canvasType === 'network') {
+                        this.renderer.render(formattedData, context);
+                    } else {
+                        this.renderer.render(formattedData);
+                    }
+                }
+                
+                // 发送渲染完成事件
+                this.eventBus.emit('renderComplete', {
+                    canvasType: this.canvasType === 'tree' ? 'Tree Canvas' : 'Network Canvas',
+                    nodeCount: data?.nodes?.length || 0,
+                    relationshipCount: data?.relationships?.length || 0
+                });
+            }
+            
+            // 格式化数据以适应渲染器
+            _formatDataForRenderer(data) {
+                if (!data) return { nodes: [], relationships: [] };
+                
+                // 确保节点和关系数据格式一致
+                return {
+                    nodes: data.nodes || [],
+                    relationships: data.relationships || [],
+                    selectedNodes: data.selectedNodes,
+                    selectedRelationship: data.selectedRelationship
+                };
+            }
+            
+            getCanvas() {
+                return this.renderer?.canvas || 
+                       this.renderer?.svg || 
+                       this.container.querySelector('canvas') || 
+                       this.container.querySelector('svg');
+            }
+            
+            getMousePos(event) {
+                const canvas = this.getCanvas();
+                if (!canvas) {
+                    console.warn('Canvas element not found');
+                    return { x: 0, y: 0 };
+                }
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top
+                };
+            }
+            
+            destroy() {
+                this.renderer = null;
+                this.container = null;
+            }
+            
+            // 缩放和移动操作
+            zoomTo(factor, center) {
+                if (this.renderer && this.renderer.zoomTo) {
+                    this.renderer.zoomTo(factor, center);
+                } else if (this.eventBus) {
+                    this.eventBus.emit('zoomTo', { factor, center });
+                }
+            }
+            
+            pan(dx, dy) {
+                if (this.renderer && this.renderer.pan) {
+                    this.renderer.pan(dx, dy);
+                } else if (this.eventBus) {
+                    this.eventBus.emit('pan', { dx, dy });
+                }
+            }
+            
+            resetView() {
+                if (this.renderer && this.renderer.resetView) {
+                    this.renderer.resetView();
+                } else if (this.eventBus) {
+                    this.eventBus.emit('resetView', { canvasType: this.canvasType });
+                }
+            }
+            
+            // 清除内容
+            clear() {
+                if (this.renderer && this.renderer.clear) {
+                    this.renderer.clear();
+                }
+            }
+            
+            // 获取当前缩放比例
+            getZoom() {
+                return this.renderer?.currentScale || 1;
+            }
+            
+            // 设置布局类型（仅对网络视图有效）
+            setLayoutType(layoutType) {
+                if (this.canvasType === 'network' && this.renderer && this.renderer.setLayoutType) {
+                    this.renderer.setLayoutType(layoutType);
+                }
+            }
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            // 创建事件总线
+            const eventBus = new EventBus();
+            
+            // 创建图数据服务
+            const graphService = new GraphDataService({
+                eventBus: eventBus,
+                autoConnectInTreeCreation: true,
+                autoConnectOnMove: true
+            });
+            
+            // 创建模式管理器
+            const modeManager = new ModeManager(eventBus);
+            
+            // 创建渲染器 - 优先使用主渲染器
+            let treeRenderer = null;
+            let networkRenderer = null;
+            
+            // 尝试使用Neo4jRenderers工厂方法创建渲染器
+            // 使用ES6动态导入方式加载渲染器模块
+            async function loadRenderers() {
+                try {
+                    // 动态导入渲染器模块
+                    const module = await import('./js/render/index.js');
+                    const Neo4jRenderers = module.default;
+                    
+                    console.log('Neo4jRenderers:', Neo4jRenderers);
+                    
+                    // 创建树渲染器
+                    if (Neo4jRenderers && Neo4jRenderers.createTreeCanvas) {
+                        treeRenderer = Neo4jRenderers.createTreeCanvas('tree-canvas', {
+                            eventBus: eventBus
+                        });
+                        console.log('✅ 成功创建主树渲染器');
+                    }
+                    
+                    // 创建网络渲染器
+                    if (Neo4jRenderers && Neo4jRenderers.createNetworkCanvas) {
+                        networkRenderer = Neo4jRenderers.createNetworkCanvas('network-canvas', {
+                            eventBus: eventBus,
+                            layoutType: 'force'
+                        });
+                        console.log('✅ 成功创建主网络渲染器');
+                    }
+                    
+                    // 检查是否需要使用备用渲染器
+                    if (!treeRenderer || !networkRenderer) {
+                        console.warn('⚠️  部分或全部主渲染器创建失败，使用备用渲染器');
+                        if (!treeRenderer) {
+                            treeRenderer = new SimpleCanvasRenderer();
+                            console.log('使用备用树渲染器');
+                        }
+                        if (!networkRenderer) {
+                            networkRenderer = new SimpleCanvasRenderer();
+                            console.log('使用备用网络渲染器');
+                        }
+                    }
+                    
+                    // 继续后续初始化
+                    initializeAfterRenderers();
+                    
+                } catch (error) {
+                    console.error('❌ 创建渲染器失败:', error);
+                    
+                    // 创建备用渲染器
+                    console.warn('⚠️  加载渲染器模块失败，使用备用渲染器');
+                    treeRenderer = new SimpleCanvasRenderer();
+                    networkRenderer = new SimpleCanvasRenderer();
+                    
+                    // 继续后续初始化
+                    initializeAfterRenderers();
+                }
+            }
+            
+            // 渲染器准备好后的初始化逻辑
+            function initializeAfterRenderers() {
+                // 创建上下文菜单管理器
+                const contextMenuManager = new ContextMenuManager({
+                    graphService: graphService,
+                    eventBus: eventBus,
+                    modeManager: modeManager
+                });
+                
+                // 创建双画布管理器
+                const dualCanvasManager = new DualCanvasManager({
+                    treeCanvas: treeRenderer,
+                    networkCanvas: networkRenderer,
+                    eventBus: eventBus,
+                    graphService: graphService,
+                    modeManager: modeManager,
+                    contextMenuManager: contextMenuManager,
+                    treeContainerSelector: '#tree-canvas',
+                    networkContainerSelector: '#network-canvas',
+                    // initialData: mockData,
+                    // syncManager: syncManager,
+                    isInit: true
+                });
+                
+                // 注册事件总线
+                eventBus.on('dualmode_changed', function(event) {
+                    dualCanvasManager.setDualMode(event.detail.isDualMode);
+                });
+                
+                // 注册键盘事件
+                eventBus.on('keydown', function(event) {
+                    if (event.detail.key === 'Escape') {
+                        contextMenuManager.hide();
+                    }
+                });
+                
+                // 确保应用状态正确
+                if (treeRenderer && typeof treeRenderer.updateConfig === 'function') {
+                    treeRenderer.updateConfig({ eventBus: eventBus });
+                }
+                if (networkRenderer && typeof networkRenderer.updateConfig === 'function') {
+                    networkRenderer.updateConfig({ eventBus: eventBus });
+                }
+            }
+            
+            // 启动加载渲染器
+            loadRenderers();
+            // const dualCanvasManager = new DualCanvasManager({
+            // // 注意：由于渲染器加载是异步的，后续初始化逻辑已移至initializeAfterRenderers函数中
+            // // 双画布管理器和上下文菜单管理器将在渲染器加载完成后创建
+            //     treeContainerSelector: '#tree-canvas',
+            //     networkContainerSelector: '#network-canvas',
+            //     graphService: graphService,
+            //     eventBus: eventBus,
+            //     modeManager: modeManager,
+            //     contextMenuManager: contextMenuManager,
+            //     treeRenderer: treeRenderer,
+            //     networkRenderer: networkRenderer
+            // });
+            
+            // 初始化 - 现在将直接使用传入的渲染器实例，不再尝试创建或回退
+            // dualCanvasManager.init();
+            // ContextMenuManager在构造函数中已完成初始化，不需要额外调用init方法
+            
+            // 模式切换按钮事件
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const mode = btn.dataset.mode;
+                    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    if (mode === 'relationship') {
+                        document.getElementById('relationship-type-selector').style.display = 'inline-block';
+                        const relType = document.getElementById('relationship-type-selector').value;
+                        modeManager.enableRelationshipMode(relType);
+                    } else {
+                        document.getElementById('relationship-type-selector').style.display = 'none';
+                        if (mode === 'select') modeManager.enableSelectMode();
+                        if (mode === 'node') modeManager.enableNodeMode();
+                    }
+                });
+            });
+            
+            // 关系类型选择器事件
+            document.getElementById('relationship-type-selector').addEventListener('change', (e) => {
+                modeManager.setRelationshipType(e.target.value);
+            });
+            
+            // 节点选择事件处理
+            eventBus.on('nodeSelected', (data) => {
+                updatePropertyPanel('node', data.nodeId);
+            });
+            
+            // 关系选择事件处理
+            eventBus.on('relationshipSelected', (data) => {
+                updatePropertyPanel('relationship', data.relId);
+            });
+            
+            // 选择清除事件处理
+            eventBus.on('selectionChanged', (data) => {
+                if (data.selectedNodes.length === 0 && !data.selectedRelationship) {
+                    clearPropertyPanel();
+                }
+            });
+            
+            // 更新属性面板
+            function updatePropertyPanel(type, id) {
+                const panel = document.getElementById('property-panel');
+                panel.innerHTML = '';
+                
+                if (type === 'node') {
+                    const node = graphService.getNode(id);
+                    if (node) {
+                        addPropertyField(panel, 'ID', node.id, true);
+                        addPropertyField(panel, 'Labels', node.labels.join(', '), true);
+                        
+                        // 添加属性编辑字段
+                        for (const [key, value] of Object.entries(node.properties)) {
+                            addPropertyField(panel, key, value, false, (newValue) => {
+                                node.properties[key] = GraphUtils.parsePropertyValue(newValue);
+                                eventBus.emit('dataChanged');
+                            });
+                        }
+                        
+                        // 添加新属性按钮
+                        const addPropBtn = document.createElement('button');
+                        addPropBtn.textContent = '添加属性';
+                        addPropBtn.className = 'mode-btn';
+                        addPropBtn.style.width = '100%';
+                        addPropBtn.addEventListener('click', () => {
+                            const propName = prompt('请输入属性名:');
+                            if (propName && propName.trim()) {
+                                node.properties[propName.trim()] = '';
+                                updatePropertyPanel('node', id);
+                                eventBus.emit('dataChanged');
+                            }
+                        });
+                        panel.appendChild(addPropBtn);
+                    }
+                } else if (type === 'relationship') {
+                    const rel = graphService.getRelationship(id);
+                    if (rel) {
+                        addPropertyField(panel, 'ID', rel.id, true);
+                        addPropertyField(panel, '类型', rel.type, true);
+                        addPropertyField(panel, '起始节点', rel.startNodeId, true);
+                        addPropertyField(panel, '结束节点', rel.endNodeId, true);
+                        
+                        // 添加关系属性编辑字段
+                        for (const [key, value] of Object.entries(rel.properties)) {
+                            addPropertyField(panel, key, value, false, (newValue) => {
+                                rel.properties[key] = GraphUtils.parsePropertyValue(newValue);
+                                eventBus.emit('dataChanged');
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // 添加属性字段到面板
+            function addPropertyField(panel, label, value, readonly, onChange) {
+                const item = document.createElement('div');
+                item.className = 'property-item';
+                
+                const labelEl = document.createElement('label');
+                labelEl.className = 'property-label';
+                labelEl.textContent = label;
+                
+                const input = document.createElement('input');
+                input.className = 'property-input';
+                input.value = GraphUtils.formatPropertyValue(value);
+                input.readOnly = readonly;
+                
+                if (!readonly && onChange) {
+                    input.addEventListener('blur', () => {
+                        onChange(input.value);
+                    });
+                    input.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            input.blur();
+                        }
+                    });
+                }
+                
+                item.appendChild(labelEl);
+                item.appendChild(input);
+                panel.appendChild(item);
+            }
+            
+            // 清空属性面板
+            function clearPropertyPanel() {
+                const panel = document.getElementById('property-panel');
+                panel.innerHTML = '<div class="empty-state">未选择任何对象</div>';
+            }
+            
+            // 添加示例数据
+            function addSampleData() {
+                // 创建根节点
+                const root = GraphUtils.createDefaultNode(['Root'], { name: '根节点' });
+                graphService.addNode(root);
+                
+                // 创建几个子节点
+                const child1 = GraphUtils.createDefaultNode(['Child'], { name: '子节点1' });
+                const child2 = GraphUtils.createDefaultNode(['Child'], { name: '子节点2' });
+                const child3 = GraphUtils.createDefaultNode(['Child'], { name: '子节点3' });
+                
+                // 添加子节点并设置父子关系
+                child1.parentId = root.id;
+                child2.parentId = root.id;
+                child3.parentId = root.id;
+                
+                graphService.addNode(child1);
+                graphService.addNode(child2);
+                graphService.addNode(child3);
+                
+                // 创建孙子节点
+                const grandchild1 = GraphUtils.createDefaultNode(['Grandchild'], { name: '孙节点1' });
+                const grandchild2 = GraphUtils.createDefaultNode(['Grandchild'], { name: '孙节点2' });
+                
+                grandchild1.parentId = child1.id;
+                grandchild2.parentId = child1.id;
+                
+                graphService.addNode(grandchild1);
+                graphService.addNode(grandchild2);
+                
+                // 创建RELATES_TO关系示例
+                graphService.addRelationship({
+                  id: graphService._generateId('rel'),
+                  type: 'RELATES_TO',
+                  startNodeId: child1.id,
+                  endNodeId: child2.id,
+                  properties: { strength: 'strong' }
+                });
+                graphService.addRelationship({
+                  id: graphService._generateId('rel'),
+                  type: 'RELATES_TO',
+                  startNodeId: child2.id,
+                  endNodeId: child3.id,
+                  properties: { strength: 'medium' }
+                });
+                
+                // 触发数据变更事件
+                eventBus.emit('dataChanged');
+            }
+            
+            // 全局变量存储当前操作信息
+            let currentMovingNodeId = null;
+            
+            // 打开节点移动对话框
+            function openMoveNodeModal(nodeId) {
+                currentMovingNodeId = nodeId;
+                const modal = document.getElementById('move-node-modal');
+                const selector = document.getElementById('parent-selector');
+                
+                // 清空选择器
+                selector.innerHTML = '';
+                
+                // 生成树结构
+                const tree = graphService.getHierarchyTree();
+                renderTreeNodes(tree, selector, 0, nodeId);
+                
+                // 显示模态框
+                modal.style.display = 'flex';
+            }
+            
+            // 渲染树节点
+            function renderTreeNodes(tree, container, level, excludeNodeId) {
+                tree.forEach(node => {
+                    if (node.id === excludeNodeId) return; // 排除当前要移动的节点
+                    
+                    const nodeEl = document.createElement('div');
+                    nodeEl.className = `tree-node level-${level}`;
+                    nodeEl.textContent = node.properties.name || node.id;
+                    nodeEl.dataset.nodeId = node.id;
+                    
+                    nodeEl.addEventListener('click', () => {
+                        // 移除其他选中项
+                        container.querySelectorAll('.tree-node.selected').forEach(el => {
+                            el.classList.remove('selected');
+                        });
+                        // 添加选中样式
+                        nodeEl.classList.add('selected');
+                    });
+                    
+                    container.appendChild(nodeEl);
+                    
+                    // 递归渲染子节点
+                    if (node.children && node.children.length > 0) {
+                        renderTreeNodes(node.children, container, level + 1, excludeNodeId);
+                    }
+                });
+            }
+            
+            // 关闭节点移动对话框
+            function closeMoveNodeModal() {
+                document.getElementById('move-node-modal').style.display = 'none';
+                currentMovingNodeId = null;
+            }
+            
+            // 确认移动节点
+            function confirmMoveNode() {
+                if (!currentMovingNodeId) return;
+                
+                const selectedNode = document.querySelector('#parent-selector .tree-node.selected');
+                if (!selectedNode) {
+                    alert('请选择目标父节点');
+                    return;
+                }
+                
+                const targetParentId = selectedNode.dataset.nodeId;
+                
+                // 移动节点
+                const node = graphService.getNode(currentMovingNodeId);
+                if (node) {
+                    node.parentId = targetParentId;
+                    graphService.moveNode(currentMovingNodeId, targetParentId);
+                    eventBus.emit('nodeMoved', { nodeId: currentMovingNodeId, parentId: targetParentId });
+                    eventBus.emit('dataChanged');
+                }
+                
+                closeMoveNodeModal();
+            }
+            
+            // 打开关系网查看对话框
+            function openNetworkViewModal(nodeId) {
+                const modal = document.getElementById('network-view-modal');
+                const container = document.getElementById('relations-container');
+                
+                // 清空容器
+                container.innerHTML = '';
+                
+                // 获取节点的所有关系
+                const node = graphService.getNode(nodeId);
+                if (node) {
+                    const relations = graphService.getNodeRelationships(nodeId);
+                    
+                    if (relations.length === 0) {
+                        container.innerHTML = '<p>当前节点没有关系</p>';
+                    } else {
+                        relations.forEach(rel => {
+                            const otherNodeId = rel.startNodeId === nodeId ? rel.endNodeId : rel.startNodeId;
+                            const otherNode = graphService.getNode(otherNodeId);
+                            
+                            if (otherNode) {
+                                const card = document.createElement('div');
+                                card.className = 'relation-card';
+                                
+                                const type = document.createElement('div');
+                                type.className = 'relation-type';
+                                type.textContent = rel.type;
+                                
+                                const nodeInfo = document.createElement('div');
+                                nodeInfo.className = 'relation-node';
+                                nodeInfo.textContent = otherNode.properties.name || otherNode.id;
+                                
+                                card.appendChild(type);
+                                card.appendChild(nodeInfo);
+                                
+                                // 点击卡片可以选择节点
+                                card.addEventListener('click', () => {
+                                    // 在关系网中选中该节点
+                                    dualCanvasManager.getNetworkCanvasManager().selectNode(otherNodeId);
+                                    // 切换上下文到该节点
+                                    dualCanvasManager.setNetworkContext(otherNodeId);
+                                });
+                                
+                                container.appendChild(card);
+                            }
+                        });
+                    }
+                }
+                
+                // 显示模态框
+                modal.style.display = 'flex';
+            }
+            
+            // 关闭关系网查看对话框
+            function closeNetworkViewModal() {
+                document.getElementById('network-view-modal').style.display = 'none';
+            }
+            
+            // 注册全局函数供ContextMenuManager调用
+            window.openMoveNodeModal = openMoveNodeModal;
+            window.openNetworkViewModal = openNetworkViewModal;
+            
+            // 处理文件导入
+            document.getElementById('file-upload').addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        
+                        // 清空现有数据
+                        graphService.clearData();
+                        
+                        // 导入节点
+                        if (data.nodes) {
+                            data.nodes.forEach(node => {
+                                graphService.addNode(node);
+                            });
+                        }
+                        
+                        // 导入关系
+                        if (data.relationships) {
+                            data.relationships.forEach(rel => {
+                                graphService.addRelationship(rel.startNodeId, rel.endNodeId, rel.type, rel.properties);
+                            });
+                        }
+                        
+                        // 触发数据变更事件
+                        eventBus.emit('dataChanged');
+                        addToHistory('导入图数据');
+                        
+                        alert('图数据导入成功');
+                    } catch (error) {
+                        alert('导入失败：' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+                
+                // 重置文件输入
+                event.target.value = '';
+            });
+            
+            // 添加示例数据
+            addSampleData();
+            
+            // 记录操作历史
+            let history = [];
+            function addToHistory(action) {
+                history.push({ action, time: new Date() });
+                if (history.length > 10) history.shift();
+                updateHistoryPanel();
+            }
+            
+            function updateHistoryPanel() {
+                const panel = document.getElementById('history-panel');
+                if (history.length === 0) {
+                    panel.innerHTML = '<div class="empty-state">暂无操作历史</div>';
+                    return;
+                }
+                
+                panel.innerHTML = '';
+                history.forEach((item, index) => {
+                    const el = document.createElement('div');
+                    el.className = 'node-item';
+                    el.textContent = `${item.action} (${item.time.toLocaleTimeString()})`;
+                    panel.appendChild(el);
+                });
+            }
+            
+            // 监听数据变更事件，记录历史
+            eventBus.on('nodeAdded', (nodeId) => addToHistory(`创建节点: ${nodeId}`));
+            eventBus.on('nodeDeleted', (nodeId) => addToHistory(`删除节点: ${nodeId}`));
+            eventBus.on('relationshipAdded', (relId) => addToHistory(`创建关系: ${relId}`));
+            eventBus.on('relationshipDeleted', (relId) => addToHistory(`删除关系: ${relId}`));
+            eventBus.on('nodeMoved', (data) => addToHistory(`移动节点: ${data.nodeId} -> ${data.parentId || '根节点'}`));
+            eventBus.on('networkContextChanged', (nodeId) => addToHistory(`切换关系网上下文: ${nodeId}`));
+        });
+    </script>
+</body>
+</html>

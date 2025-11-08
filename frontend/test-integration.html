@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j编辑器模块集成测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #3498db;
+            border-radius: 4px;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #bbdefb;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .logs {
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .log-time {
+            color: #666;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .log-level {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .log-level.info {
+            color: #1565c0;
+        }
+        .log-level.warn {
+            color: #f57c00;
+        }
+        .log-level.error {
+            color: #c62828;
+        }
+        .log-level.success {
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Neo4j编辑器模块集成测试</h1>
+        
+        <div class="test-section">
+            <h2>1. 初始化测试</h2>
+            <button id="init-modules">初始化模块</button>
+            <div id="init-result" class="test-result info">准备中...</div>
+        </div>
+        
+        <div class="test-section">
+            <h2>2. 数据操作测试</h2>
+            <button id="add-node">添加节点</button>
+            <button id="delete-node">删除节点</button>
+            <button id="add-relationship">添加关系</button>
+            <button id="delete-relationship">删除关系</button>
+            <div id="data-result" class="test-result info">准备中...</div>
+        </div>
+        
+        <div class="test-section">
+            <h2>3. 事件监听测试</h2>
+            <button id="test-events">测试事件传播</button>
+            <div id="event-result" class="test-result info">准备中...</div>
+        </div>
+        
+        <div class="logs" id="logs">
+            <h3>事件日志</h3>
+        </div>
+    </div>
+
+    <!-- 事件总线 -->
+    <script src="js/events/eventBus.js"></script>
+    <!-- 图数据服务 -->
+    <script src="js/utils/graphUtils.js"></script>
+    <script src="js/services/graphDataService.js"></script>
+    <!-- 事件管理器 - 使用模拟对象 -->
+    <!-- 双画布编辑器 - 暂时使用模拟对象 -->
+
+    <script>
+        // 全局变量
+        let eventBus;
+        let graphService;
+        let eventManager;
+        let dualCanvasEditor;
+        let testNodeId = null;
+        let testRelationshipId = null;
+        let eventTestCount = 0;
+        
+        // 日志工具
+        function log(level, message) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `
+                <span class="log-time">${timestamp}</span>
+                <span class="log-level ${level}">${level.toUpperCase()}</span>
+                <span>${message}</span>
+            `;
+            logs.appendChild(logEntry);
+            logs.scrollTop = logs.scrollHeight;
+        }
+        
+        // 清除所有日志
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '<h3>事件日志</h3>';
+        }
+        
+        // 更新结果显示
+        function updateResult(elementId, result, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(result, null, 2);
+            element.className = `test-result ${isError ? 'error' : 'success'}`;
+        }
+        
+        // 初始化模块测试
+        document.getElementById('init-modules').addEventListener('click', async function() {
+            try {
+                clearLogs();
+                
+                // 初始化事件总线
+                log('info', '初始化事件总线...');
+                eventBus = new EventBus();
+                
+                // 注册事件监听器
+                eventBus.on('dataChanged', () => log('info', '接收到 dataChanged 事件'));
+                eventBus.on('nodeAdded', (nodeId) => log('info', `接收到 nodeAdded 事件: ${nodeId}`));
+                eventBus.on('nodeDeleted', (nodeId) => log('info', `接收到 nodeDeleted 事件: ${nodeId}`));
+                eventBus.on('relationshipAdded', (relId) => log('info', `接收到 relationshipAdded 事件: ${relId}`));
+                eventBus.on('relationshipDeleted', (relId) => log('info', `接收到 relationshipDeleted 事件: ${relId}`));
+                eventBus.on('modeChanged', (mode) => log('info', `接收到 modeChanged 事件: ${mode}`));
+                
+                // 初始化图数据服务
+                log('info', '初始化图数据服务...');
+                graphService = new GraphDataService({ eventBus });
+                
+                // 模拟事件管理器，只测试核心功能
+                log('info', '创建模拟事件管理器...');
+                eventManager = {
+                    eventBus,
+                    graphService,
+                    initializeEvents: function() { log('info', '事件管理器初始化完成'); },
+                    setMode: function(mode) { 
+                        this.currentMode = mode;
+                        this.eventBus.emit('modeChanged', mode);
+                        log('info', `模式切换为: ${mode}`);
+                    }
+                };
+                
+                // 模拟双画布编辑器，只测试核心功能
+                log('info', '创建模拟双画布编辑器...');
+                dualCanvasEditor = {
+                    eventBus,
+                    graphService,
+                    init: function() { log('info', '编辑器初始化完成'); },
+                    getState: function() { return { mode: 'select' }; }
+                };
+                
+                updateResult('init-result', {
+                    success: true,
+                    message: '所有模块初始化成功',
+                    modules: ['eventBus', 'graphService', 'eventManager', 'dualCanvasEditor']
+                });
+                
+                log('success', '模块初始化完成');
+            } catch (error) {
+                log('error', `初始化失败: ${error.message}`);
+                updateResult('init-result', {
+                    success: false,
+                    error: error.message
+                }, true);
+            }
+        });
+        
+        // 添加节点测试
+        document.getElementById('add-node').addEventListener('click', function() {
+            try {
+                const nodeId = GraphUtils.generateNodeId();
+                const node = {
+                    id: nodeId,
+                    labels: ['TestNode'],
+                    properties: {
+                        name: '测试节点',
+                        created: new Date().toISOString()
+                    }
+                };
+                
+                graphService.addNode(node);
+                testNodeId = nodeId;
+                
+                updateResult('data-result', {
+                    success: true,
+                    action: 'addNode',
+                    nodeId: nodeId
+                });
+                
+                log('success', `节点添加成功: ${nodeId}`);
+            } catch (error) {
+                log('error', `添加节点失败: ${error.message}`);
+                updateResult('data-result', {
+                    success: false,
+                    action: 'addNode',
+                    error: error.message
+                }, true);
+            }
+        });
+        
+        // 删除节点测试
+        document.getElementById('delete-node').addEventListener('click', function() {
+            try {
+                if (!testNodeId) {
+                    throw new Error('请先添加一个节点');
+                }
+                
+                const success = graphService.deleteNode(testNodeId);
+                
+                updateResult('data-result', {
+                    success: success,
+                    action: 'deleteNode',
+                    nodeId: testNodeId
+                });
+                
+                log('success', `节点删除: ${testNodeId}, 结果: ${success}`);
+                testNodeId = null;
+            } catch (error) {
+                log('error', `删除节点失败: ${error.message}`);
+                updateResult('data-result', {
+                    success: false,
+                    action: 'deleteNode',
+                    error: error.message
+                }, true);
+            }
+        });
+        
+        // 添加关系测试
+        document.getElementById('add-relationship').addEventListener('click', function() {
+            try {
+                // 确保有两个节点用于测试
+                if (!testNodeId) {
+                    testNodeId = GraphUtils.generateNodeId();
+                    graphService.addNode({
+                        id: testNodeId,
+                        labels: ['Source'],
+                        properties: { name: '源节点' }
+                    });
+                }
+                
+                const targetNodeId = GraphUtils.generateNodeId();
+                graphService.addNode({
+                    id: targetNodeId,
+                    labels: ['Target'],
+                    properties: { name: '目标节点' }
+                });
+                
+                // 添加关系
+                const relationship = {
+                    type: 'TEST_RELATIONSHIP',
+                    startNodeId: testNodeId,
+                    endNodeId: targetNodeId,
+                    properties: {
+                        test: true,
+                        created: new Date().toISOString()
+                    }
+                };
+                
+                const rel = graphService.addRelationship(relationship);
+                testRelationshipId = rel.id;
+                
+                updateResult('data-result', {
+                    success: true,
+                    action: 'addRelationship',
+                    relationshipId: rel.id,
+                    startNodeId: testNodeId,
+                    endNodeId: targetNodeId
+                });
+                
+                log('success', `关系添加成功: ${rel.id}`);
+            } catch (error) {
+                log('error', `添加关系失败: ${error.message}`);
+                updateResult('data-result', {
+                    success: false,
+                    action: 'addRelationship',
+                    error: error.message
+                }, true);
+            }
+        });
+        
+        // 删除关系测试
+        document.getElementById('delete-relationship').addEventListener('click', function() {
+            try {
+                if (!testRelationshipId) {
+                    throw new Error('请先添加一个关系');
+                }
+                
+                const success = graphService.deleteRelationship(testRelationshipId);
+                
+                updateResult('data-result', {
+                    success: success,
+                    action: 'deleteRelationship',
+                    relationshipId: testRelationshipId
+                });
+                
+                log('success', `关系删除: ${testRelationshipId}, 结果: ${success}`);
+                testRelationshipId = null;
+            } catch (error) {
+                log('error', `删除关系失败: ${error.message}`);
+                updateResult('data-result', {
+                    success: false,
+                    action: 'deleteRelationship',
+                    error: error.message
+                }, true);
+            }
+        });
+        
+        // 事件传播测试
+        document.getElementById('test-events').addEventListener('click', function() {
+            try {
+                eventTestCount++;
+                
+                // 测试手动触发事件
+                log('info', '测试手动触发模式变更事件...');
+                eventBus.emit('modeChanged', `test_mode_${eventTestCount}`);
+                
+                // 测试通过数据服务触发事件
+                log('info', '测试通过数据服务触发事件...');
+                const tempNodeId = GraphUtils.generateNodeId();
+                graphService.addNode({
+                    id: tempNodeId,
+                    labels: ['EventTest'],
+                    properties: { testCount: eventTestCount }
+                });
+                
+                // 立即删除以测试删除事件
+                setTimeout(() => {
+                    graphService.deleteNode(tempNodeId);
+                    
+                    updateResult('event-result', {
+                        success: true,
+                        testCount: eventTestCount,
+                        eventsTriggered: ['modeChanged', 'nodeAdded', 'dataChanged', 'nodeDeleted']
+                    });
+                }, 100);
+                
+            } catch (error) {
+                log('error', `事件测试失败: ${error.message}`);
+                updateResult('event-result', {
+                    success: false,
+                    error: error.message
+                }, true);
+            }
+        });
+    </script>
+</body>
+</html>

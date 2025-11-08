@@ -67,6 +67,7 @@
       width: 100%;
       height: calc(100% - 50px);
       background: #fafafa;
+      position: relative;
     }
     
     .controls {
@@ -113,6 +114,12 @@
     .btn-info { background: #9b59b6; color: white; }
     .btn-info:hover { background: #8e44ad; }
     
+    .btn-active {
+      background: #e67e22;
+      color: white;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
     .options-group {
       margin-bottom: 20px;
     }
@@ -148,6 +155,21 @@
       margin-bottom: 20px;
     }
     
+    .mode-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+    
+    .mode-controls h3 {
+      margin-right: 10px;
+      color: #555;
+      align-self: center;
+    }
+    
     @media (max-width: 768px) {
       .canvas-container {
         flex-direction: column;
@@ -158,18 +180,38 @@
         height: 400px;
         margin-bottom: 20px;
       }
+      
+      .mode-controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>Neo4j 渲染器演示</h1>
-      <p>双视图可视化：层级树视图与关系网络视图</p>
+      <h1>Neo4j 双视图编辑器演示</h1>
+      <p>层级树视图与关系网络视图的交互编辑</p>
     </div>
     
     <div class="info-text">
-      <strong>使用说明：</strong>点击下方按钮生成图数据并渲染。在画布上可拖拽平移，使用鼠标滚轮缩放。两个画布共享同一数据源，但各自独立渲染和交互。
+      <strong>使用说明：</strong>
+      <ul style="margin-top: 10px; padding-left: 20px;">
+        <li>选择不同的操作模式进行交互：选择、创建节点、创建关系</li>
+        <li>在树视图中双击节点可切换到网络视图的上下文</li>
+        <li>在网络视图中双击节点可进行下钻操作</li>
+        <li>使用鼠标滚轮缩放，拖拽平移画布</li>
+        <li>右键点击可显示上下文菜单</li>
+      </ul>
+    </div>
+    
+    <!-- 操作模式控制 -->
+    <div class="mode-controls">
+      <h3>操作模式：</h3>
+      <button id="select-mode-btn" class="btn btn-info btn-active">选择模式</button>
+      <button id="node-mode-btn" class="btn btn-primary">创建节点</button>
+      <button id="relationship-mode-btn" class="btn btn-secondary">创建关系</button>
     </div>
     
     <div class="controls">
@@ -194,9 +236,6 @@
       
       <div class="button-group">
         <button id="generate-data-btn" class="btn btn-primary">生成新数据</button>
-        <button id="render-both-btn" class="btn btn-secondary">渲染两个视图</button>
-        <button id="render-tree-btn" class="btn btn-info">仅渲染树视图</button>
-        <button id="render-network-btn" class="btn btn-info">仅渲染网络视图</button>
         <button id="reset-view-btn" class="btn btn-danger">重置视图</button>
       </div>
     </div>
@@ -214,134 +253,1218 @@
     </div>
   </div>
   
-  <!-- 渲染器脚本 - 按正确顺序加载 -->
+  <!-- 核心脚本 - 按正确顺序加载 -->
+  <!-- 1. 渲染器 -->
   <script src="../render/baseRenderer.js"></script>
   <script src="../render/treeCanvas.js"></script>
   <script src="../render/networkCanvas.js"></script>
   <script src="../render/index.js"></script>
   
+  <!-- 2. 双画布编辑器核心组件 -->
+  <script src="ModeManager.js"></script>
+  <script src="CanvasManager.js"></script>
+  <script src="TreeCanvasManager.js"></script>
+  <script src="NetworkCanvasManager.js"></script>
+  <script src="ContextMenuManager.js"></script>
+  
   <script>
+    // 确保使用统一的事件总线
+    // 在实际环境中，应确保已加载公共事件总线模块
+    if (!window.eventBus) {
+      console.warn('统一事件总线未加载，尝试初始化');
+      
+      // 尝试导入公共事件总线模块
+      try {
+        // 检查是否有RequireJS或其他模块加载器
+        if (typeof require === 'function') {
+          require(['../common/eventBus'], function(EventBusModule) {
+            window.EventBus = EventBusModule;
+            window.eventBus = EventBusModule.getInstance();
+          });
+        } else if (typeof define === 'function' && define.amd) {
+          // 如果使用AMD但没有RequireJS
+          define(['../common/eventBus'], function(EventBusModule) {
+            window.EventBus = EventBusModule;
+            window.eventBus = EventBusModule.getInstance();
+            return EventBusModule;
+          });
+        }
+      } catch (e) {
+        console.error('初始化事件总线失败:', e);
+      }
+    }
+    
+    // 确保GraphDataService可用
+    class GraphDataService {
+      constructor(options = {}) {
+        this.options = options;
+        this.nodes = new Map();
+        this.relationships = new Map();
+        this.relationshipsByStartNode = new Map();
+        this.relationshipsByEndNode = new Map();
+        this.listeners = new Map();
+        this.eventBus = new EventBus(); // 使用我们实现的事件总线
+      }
+      
+      // 基础数据操作方法
+      addNode(node) {
+        this.nodes.set(node.id, node);
+        this._notifyDataChanged();
+        
+        // 触发节点添加事件
+        this.eventBus.emit('nodeAdded', node);
+        
+        return node;
+      }
+      
+      removeNode(nodeId) {
+        if (!this.nodes.has(nodeId)) return false;
+        
+        const nodeToRemove = this.nodes.get(nodeId);
+        
+        // 移除相关关系
+        const relsToRemove = [];
+        if (this.relationshipsByStartNode.has(nodeId)) {
+          this.relationshipsByStartNode.get(nodeId).forEach(relId => relsToRemove.push(relId));
+        }
+        if (this.relationshipsByEndNode.has(nodeId)) {
+          this.relationshipsByEndNode.get(nodeId).forEach(relId => relsToRemove.push(relId));
+        }
+        
+        relsToRemove.forEach(relId => this.removeRelationship(relId));
+        this.nodes.delete(nodeId);
+        this._notifyDataChanged();
+        
+        // 触发节点删除事件
+        this.eventBus.emit('nodeRemoved', { node: nodeToRemove, edges: relsToRemove });
+        
+        return true;
+      }
+      
+      addRelationship(rel) {
+        this.relationships.set(rel.id, rel);
+        
+        // 更新索引
+        if (!this.relationshipsByStartNode.has(rel.startNodeId)) {
+          this.relationshipsByStartNode.set(rel.startNodeId, new Set());
+        }
+        if (!this.relationshipsByEndNode.has(rel.endNodeId)) {
+          this.relationshipsByEndNode.set(rel.endNodeId, new Set());
+        }
+        
+        this.relationshipsByStartNode.get(rel.startNodeId).add(rel.id);
+        this.relationshipsByEndNode.get(rel.endNodeId).add(rel.id);
+        
+        this._notifyDataChanged();
+        
+        // 触发关系添加事件
+        this.eventBus.emit('relationshipAdded', rel);
+        
+        return rel;
+      }
+      
+      // 添加addEdge方法以兼容交互代码
+      addEdge(edgeData) {
+        const rel = {
+          id: GraphUtils.generateUniqueId('rel_'),
+          type: edgeData.type || 'RELATES_TO',
+          startNodeId: edgeData.source,
+          endNodeId: edgeData.target,
+          properties: edgeData.properties || {},
+          // 保留source和target属性以便与现有代码兼容
+          source: edgeData.source,
+          target: edgeData.target,
+          label: edgeData.label || '关系'
+        };
+        
+        // 直接调用addRelationship
+        const result = this.addRelationship(rel);
+        
+        // 确保同时触发edgeAdded事件（除了relationshipAdded）
+        this.eventBus.emit('edgeAdded', rel);
+        
+        return result;
+      }
+      
+      removeRelationship(relId) {
+        const rel = this.relationships.get(relId);
+        if (!rel) return false;
+        
+        // 更新索引
+        if (this.relationshipsByStartNode.has(rel.startNodeId)) {
+          this.relationshipsByStartNode.get(rel.startNodeId).delete(relId);
+        }
+        if (this.relationshipsByEndNode.has(rel.endNodeId)) {
+          this.relationshipsByEndNode.get(rel.endNodeId).delete(relId);
+        }
+        
+        this.relationships.delete(relId);
+        this._notifyDataChanged();
+        
+        // 触发关系删除事件
+        this.eventBus.emit('relationshipRemoved', rel);
+        // 同时触发edgeRemoved事件以兼容
+        this.eventBus.emit('edgeRemoved', rel);
+        
+        return true;
+      }
+      
+      // 添加removeEdge方法以兼容交互代码
+      removeEdge(edgeId) {
+        // 调用removeRelationship，确保事件正确触发
+        return this.removeRelationship(edgeId);
+      }
+      
+      moveNode(nodeId, newParentId) {
+        // 这里简化实现，实际应该处理树结构的移动逻辑
+        this._notifyDataChanged();
+      }
+      
+      getNode(nodeId) {
+        return this.nodes.get(nodeId);
+      }
+      
+      getRelationship(relId) {
+        return this.relationships.get(relId);
+      }
+      
+      // 更新节点方法
+      updateNode(nodeId, updates) {
+        const node = this.nodes.get(nodeId);
+        if (!node) return null;
+        
+        Object.assign(node, updates);
+        this._notifyDataChanged();
+        
+        // 触发节点更新事件
+        this.eventBus.emit('nodeUpdated', node);
+        
+        return node;
+      }
+      
+      // 更新关系方法
+      updateRelationship(relId, updates) {
+        const rel = this.relationships.get(relId);
+        if (!rel) return null;
+        
+        Object.assign(rel, updates);
+        this._notifyDataChanged();
+        
+        // 触发关系更新事件
+        this.eventBus.emit('relationshipUpdated', rel);
+        
+        return rel;
+      }
+      
+      // 获取所有数据
+      getData() {
+        return {
+          nodes: Array.from(this.nodes.values()),
+          edges: Array.from(this.relationships.values())
+        };
+      }
+      
+      // 设置数据
+      setData(data) {
+        // 清空现有数据
+        this.nodes.clear();
+        this.relationships.clear();
+        this.relationshipsByStartNode.clear();
+        this.relationshipsByEndNode.clear();
+        
+        // 添加新数据
+        if (data.nodes) {
+          data.nodes.forEach(node => this.addNode(node));
+        }
+        if (data.edges) {
+          data.edges.forEach(edge => this.addRelationship(edge));
+        }
+        
+        this._notifyDataChanged();
+        
+        // 触发数据加载完成事件
+        this.eventBus.emit('dataLoaded', this.getData());
+      }
+      
+      // 查找子节点
+      _findChildNodes(nodeId) {
+        const children = [];
+        if (this.relationshipsByEndNode.has(nodeId)) {
+          this.relationshipsByEndNode.get(nodeId).forEach(relId => {
+            const rel = this.relationships.get(relId);
+            if (rel && rel.type === 'CHILD_OF') {
+              const childNode = this.nodes.get(rel.startNodeId);
+              if (childNode) children.push(childNode);
+            }
+          });
+        }
+        return children;
+      }
+      
+      // 获取层级树数据（树视图所需）
+      getHierarchyTree(rootNodeId = null) {
+        // 确保使用Map.values()而不是直接访问length属性
+        const nodeArray = Array.from(this.nodes.values());
+        const edgeArray = Array.from(this.relationships.values());
+        
+        // 构建树结构
+        const buildTree = (nodeId, visited = new Set()) => {
+          if (visited.has(nodeId)) return null;
+          visited.add(nodeId);
+          
+          const node = nodeArray.find(n => n.id === nodeId);
+          if (!node) return null;
+          
+          const children = [];
+          // 查找从该节点出发的边（子节点）
+          edgeArray.forEach(edge => {
+            if (edge.source === nodeId) {
+              const child = buildTree(edge.target, visited);
+              if (child) {
+                child.edge = edge; // 保存边的信息
+                children.push(child);
+              }
+            }
+          });
+          
+          return {
+            node,
+            children,
+            depth: 0 // 深度将在后续计算
+          };
+        };
+        
+        // 如果没有指定根节点，选择第一个节点或创建一个虚拟根
+        let rootId = rootNodeId;
+        if (!rootId && nodeArray.length > 0) {
+          // 尝试找到没有入边的节点作为根
+          const nodesWithInEdges = new Set(edgeArray.map(e => e.target));
+          const rootNodes = nodeArray.filter(n => !nodesWithInEdges.has(n.id));
+          rootId = rootNodes.length > 0 ? rootNodes[0].id : nodeArray[0].id;
+        }
+        
+        if (!rootId) return null;
+        
+        const tree = buildTree(rootId);
+        
+        // 计算深度
+        const calculateDepth = (node, depth = 0) => {
+          node.depth = depth;
+          node.children.forEach(child => calculateDepth(child, depth + 1));
+        };
+        
+        if (tree) calculateDepth(tree);
+        
+        return tree;
+      }
+      
+      // 获取网络视图数据（关系网视图所需）
+      getNetworkData(contextNodeId = null) {
+        // 确保使用Map.values()而不是直接访问length属性
+        const nodeArray = Array.from(this.nodes.values());
+        const edgeArray = Array.from(this.relationships.values());
+        
+        // 如果指定了上下文节点，获取与该节点直接相连的节点和边
+        if (contextNodeId) {
+          const relevantNodes = new Set([contextNodeId]);
+          const relevantEdges = [];
+          
+          edgeArray.forEach(edge => {
+            if (edge.source === contextNodeId || edge.target === contextNodeId) {
+              relevantEdges.push(edge);
+              relevantNodes.add(edge.source);
+              relevantNodes.add(edge.target);
+            }
+          });
+          
+          return {
+            nodes: nodeArray.filter(n => relevantNodes.has(n.id)),
+            edges: relevantEdges
+          };
+        }
+        
+        // 否则返回所有数据
+        return this.getData();
+      }
+      
+      // 事件监听相关
+      on(eventName, callback) {
+        if (!this.listeners.has(eventName)) {
+          this.listeners.set(eventName, new Set());
+        }
+        this.listeners.get(eventName).add(callback);
+        
+        // 同时将事件监听器添加到eventBus，确保双向兼容
+        if (this.eventBus && typeof this.eventBus.on === 'function') {
+          this.eventBus.on(eventName, callback);
+        }
+        
+        return this;
+      }
+      
+      off(eventName, callback) {
+        if (this.listeners.has(eventName)) {
+          if (callback) {
+            this.listeners.get(eventName).delete(callback);
+          } else {
+            this.listeners.delete(eventName);
+          }
+        }
+        
+        // 同时从eventBus移除监听器
+        if (this.eventBus && typeof this.eventBus.off === 'function') {
+          this.eventBus.off(eventName, callback);
+        }
+        
+        return this;
+      }
+      
+      _notifyDataChanged() {
+        if (this.listeners.has('dataChanged')) {
+          this.listeners.get('dataChanged').forEach(callback => callback());
+        }
+        
+        // 同时通过eventBus触发dataChanged事件
+        if (this.eventBus && typeof this.eventBus.emit === 'function') {
+          this.eventBus.emit('dataChanged');
+        }
+      }
+      
+      // 设置示例数据方法，便于快速初始化
+      setExampleData() {
+        // 清空现有数据
+        this.setData({ nodes: [], edges: [] });
+        
+        // 添加示例节点
+        const node1 = this.addNode({
+          id: GraphUtils.generateUniqueId('node_'),
+          labels: ['Entity'],
+          type: 'root',
+          x: 100,
+          y: 200,
+          properties: {
+            name: '根节点',
+            description: '这是一个根节点',
+            createdAt: new Date().toISOString()
+          }
+        });
+        
+        const node2 = this.addNode({
+          id: GraphUtils.generateUniqueId('node_'),
+          labels: ['Entity'],
+          type: 'child',
+          x: 250,
+          y: 150,
+          properties: {
+            name: '子节点1',
+            description: '这是第一个子节点',
+            createdAt: new Date().toISOString()
+          }
+        });
+        
+        const node3 = this.addNode({
+          id: GraphUtils.generateUniqueId('node_'),
+          labels: ['Entity'],
+          type: 'child',
+          x: 250,
+          y: 250,
+          properties: {
+            name: '子节点2',
+            description: '这是第二个子节点',
+            createdAt: new Date().toISOString()
+          }
+        });
+        
+        const node4 = this.addNode({
+          id: GraphUtils.generateUniqueId('node_'),
+          labels: ['Entity'],
+          type: 'grandchild',
+          x: 400,
+          y: 100,
+          properties: {
+            name: '孙节点1',
+            description: '这是一个孙节点',
+            createdAt: new Date().toISOString()
+          }
+        });
+        
+        // 添加示例关系
+        this.addRelationship({
+          id: GraphUtils.generateUniqueId('rel_'),
+          type: 'CHILD_OF',
+          startNodeId: node2.id,
+          endNodeId: node1.id,
+          properties: {
+            createdAt: new Date().toISOString()
+          }
+        });
+        
+        this.addRelationship({
+          id: GraphUtils.generateUniqueId('rel_'),
+          type: 'CHILD_OF',
+          startNodeId: node3.id,
+          endNodeId: node1.id,
+          properties: {
+            createdAt: new Date().toISOString()
+          }
+        });
+        
+        this.addRelationship({
+          id: GraphUtils.generateUniqueId('rel_'),
+          type: 'CHILD_OF',
+          startNodeId: node4.id,
+          endNodeId: node2.id,
+          properties: {
+            createdAt: new Date().toISOString()
+          }
+        });
+      }
+    }
+    
+    // 工具函数
+    const GraphUtils = {
+      generateUniqueId: function(prefix = '') {
+        return prefix + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+      }
+    };
+    
+    // 创建示例数据的函数
+    function createSampleData(graphService, utils, nodeCount = 10, edgeCount = 15) {
+      // 生成节点
+      const nodes = [];
+      for (let i = 0; i < nodeCount; i++) {
+        const node = {
+          id: utils.generateUniqueId('node_'),
+          labels: ['Entity'],
+          properties: {
+            name: `节点 ${i + 1}`,
+            description: `这是一个示例节点 ${i + 1}`,
+            createdAt: new Date().toISOString()
+          }
+        };
+        nodes.push(node);
+        graphService.addNode(node);
+      }
+      
+      // 生成边（确保至少有一个树结构）
+      for (let i = 1; i < nodes.length; i++) {
+        const parentIndex = Math.floor(Math.random() * i);
+        const edge = {
+          id: utils.generateUniqueId('rel_'),
+          type: i % 3 === 0 ? 'RELATES_TO' : 'CHILD_OF',
+          startNodeId: nodes[i].id,
+          endNodeId: nodes[parentIndex].id,
+          properties: {
+            createdAt: new Date().toISOString()
+          }
+        };
+        graphService.addRelationship(edge);
+      }
+      
+      // 添加额外的关系
+      const additionalEdges = edgeCount - (nodes.length - 1);
+      for (let i = 0; i < additionalEdges; i++) {
+        const startIndex = Math.floor(Math.random() * nodes.length);
+        let endIndex;
+        do {
+          endIndex = Math.floor(Math.random() * nodes.length);
+        } while (startIndex === endIndex);
+        
+        const edge = {
+          id: utils.generateUniqueId('rel_'),
+          type: 'RELATES_TO',
+          startNodeId: nodes[startIndex].id,
+          endNodeId: nodes[endIndex].id,
+          properties: {
+            createdAt: new Date().toISOString()
+          }
+        };
+        graphService.addRelationship(edge);
+      }
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('渲染器演示初始化...');
+      console.log('双视图编辑器演示初始化...');
       
-      // 初始化渲染器
-      let dualRenderer;
-      let currentData;
-      let currentNetworkContext = null;
+      // 初始化图数据服务
+      const graphService = new GraphDataService({
+        autoConnectInTreeCreation: true,
+        autoConnectOnMove: false
+      });
       
-      // 加载渲染器
-      function loadRenderers() {
-        try {
-          // 创建双视图渲染器
-          dualRenderer = Neo4jRenderers.createDualViewRenderer({
-            tree: 'tree-canvas',
-            network: 'network-canvas'
-          });
-          
-          console.log('渲染器初始化成功');
-          return true;
-        } catch (error) {
-          console.error('渲染器初始化失败:', error);
-          return false;
-        }
-      }
+      // 生成初始数据
+      const nodeCount = parseInt(document.getElementById('node-count').value) || 10;
+      const edgeCount = parseInt(document.getElementById('edge-count').value) || 15;
+      createSampleData(graphService, GraphUtils, nodeCount, edgeCount);
       
-      // 生成并渲染示例数据
-      function generateAndRenderData() {
-        try {
-          const nodeCount = parseInt(document.getElementById('node-count').value) || 10;
-          const edgeCount = parseInt(document.getElementById('edge-count').value) || 15;
+      // 简化版的双画布编辑器实现
+      class DualCanvasEditor {
+        constructor(options = {}) {
+          // 配置选项
+          this.options = {
+            treeContainerSelector: '#tree-canvas',
+            networkContainerSelector: '#network-canvas',
+            ...options
+          };
+
+          // 初始化组件
+          this.eventBus = new EventBus();
+          this.graphService = graphService; // 使用已创建的graphService
+          this.modeManager = new ModeManager(this.eventBus);
           
-          // 确保边数量至少为节点数-1（保证连通性）
-          const adjustedEdgeCount = Math.max(nodeCount - 1, edgeCount);
-          
-          // 生成模拟数据
-          currentData = Neo4jRenderers.generateMockData(nodeCount, adjustedEdgeCount);
-          
-          console.log('生成数据成功:', {
-            nodeCount: currentData.nodes.length,
-            edgeCount: currentData.edges.length
-          });
-          
-          // 渲染数据
-          if (dualRenderer) {
-            const layoutType = document.getElementById('network-layout').value;
-            if (dualRenderer.networkCanvas && typeof dualRenderer.networkCanvas.setLayoutType === 'function') {
-              dualRenderer.networkCanvas.setLayoutType(layoutType);
+          try {
+            // 确保容器元素存在
+            const treeContainer = document.querySelector(this.options.treeContainerSelector);
+            const networkContainer = document.querySelector(this.options.networkContainerSelector);
+            
+            if (!treeContainer || !networkContainer) {
+              console.error('无法找到画布容器元素');
+              return;
             }
-            dualRenderer.render(currentData, currentNetworkContext);
-            console.log('数据渲染完成');
+            
+            // 基本的渲染方法实现
+            this._createBasicRenderer = function(container, isTreeView = false) {
+              return {
+                container,
+                init: function() {
+                  console.log(`初始化${isTreeView ? '树视图' : '网络视图'}渲染器`);
+                  // 清空容器
+                  container.innerHTML = '';
+                  
+                  // 创建SVG元素
+                  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                  svg.setAttribute('width', '100%');
+                  svg.setAttribute('height', '100%');
+                  container.appendChild(svg);
+                  
+                  // 添加鼠标事件处理
+                  svg.addEventListener('click', (e) => {
+                    console.log(`${isTreeView ? '树视图' : '网络视图'}点击事件`);
+                  });
+                  
+                  return this;
+                },
+                render: function(data) {
+                  console.log(`渲染${isTreeView ? '树视图' : '网络视图'}数据`, data);
+                  const svg = container.querySelector('svg');
+                  if (!svg || !data) return;
+                  
+                  // 清空现有内容
+                  svg.innerHTML = '';
+                  
+                  if (data.nodes && data.nodes.length > 0) {
+                    // 简单显示文本信息
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', '10');
+                    text.setAttribute('y', '20');
+                    text.textContent = `${isTreeView ? '树视图' : '网络视图'}: ${data.nodes.length}个节点, ${data.edges ? data.edges.length : 0}条边`;
+                    svg.appendChild(text);
+                    
+                    // 简单渲染节点和边
+                    const width = container.clientWidth;
+                    const height = container.clientHeight;
+                    
+                    // 渲染节点
+                    data.nodes.forEach((node, index) => {
+                      const cx = 50 + (index % 5) * 100;
+                      const cy = 50 + Math.floor(index / 5) * 80;
+                      
+                      // 节点圆
+                      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                      circle.setAttribute('cx', cx);
+                      circle.setAttribute('cy', cy);
+                      circle.setAttribute('r', '20');
+                      circle.setAttribute('fill', '#3498db');
+                      circle.setAttribute('data-id', node.id);
+                      svg.appendChild(circle);
+                      
+                      // 节点标签
+                      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                      label.setAttribute('x', cx);
+                      label.setAttribute('y', cy + 5);
+                      label.setAttribute('text-anchor', 'middle');
+                      label.setAttribute('fill', 'white');
+                      label.textContent = node.label || node.id.slice(0, 3);
+                      svg.appendChild(label);
+                    });
+                    
+                    // 渲染边
+                    if (data.edges && data.edges.length > 0) {
+                      data.edges.forEach(edge => {
+                        // 找到边的源节点和目标节点
+                        const sourceNode = data.nodes.find(n => n.id === edge.source);
+                        const targetNode = data.nodes.find(n => n.id === edge.target);
+                        
+                        if (sourceNode && targetNode) {
+                          // 找到源节点和目标节点的索引位置
+                          const sourceIndex = data.nodes.findIndex(n => n.id === edge.source);
+                          const targetIndex = data.nodes.findIndex(n => n.id === edge.target);
+                          
+                          if (sourceIndex !== -1 && targetIndex !== -1) {
+                            const sourceX = 50 + (sourceIndex % 5) * 100;
+                            const sourceY = 50 + Math.floor(sourceIndex / 5) * 80;
+                            const targetX = 50 + (targetIndex % 5) * 100;
+                            const targetY = 50 + Math.floor(targetIndex / 5) * 80;
+                            
+                            // 创建边
+                            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                            line.setAttribute('x1', sourceX);
+                            line.setAttribute('y1', sourceY);
+                            line.setAttribute('x2', targetX);
+                            line.setAttribute('y2', targetY);
+                            line.setAttribute('stroke', '#95a5a6');
+                            line.setAttribute('stroke-width', '2');
+                            svg.appendChild(line);
+                          }
+                        }
+                      });
+                    }
+                  } else {
+                    // 没有数据时显示提示
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', '10');
+                    text.setAttribute('y', '20');
+                    text.textContent = `${isTreeView ? '树视图' : '网络视图'}: 暂无数据`;
+                    svg.appendChild(text);
+                  }
+                },
+                setContext: function(contextId) {
+                  console.log(`设置${isTreeView ? '树视图' : '网络视图'}上下文:`, contextId);
+                }
+              };
+            };
+            
+            // 创建简单的渲染器
+            this.treeCanvasManager = this._createBasicRenderer(treeContainer, true);
+            this.networkCanvasManager = this._createBasicRenderer(networkContainer, false);
+            
+            console.log('双画布编辑器组件初始化完成');
+          } catch (error) {
+            console.error('初始化编辑器组件失败:', error);
           }
-        } catch (error) {
-          console.error('生成数据失败:', error);
-          alert('生成数据失败');
         }
-      }
-      
-      // 更新网络布局
-      function updateNetworkLayout() {
-        const layoutType = document.getElementById('network-layout').value;
-        if (dualRenderer && dualRenderer.networkCanvas) {
-          if (typeof dualRenderer.networkCanvas.setLayoutType === 'function') {
-            dualRenderer.networkCanvas.setLayoutType(layoutType);
-            // 重新渲染网络视图
-            if (currentData) {
-              dualRenderer.render(currentData, currentNetworkContext);
+        
+        init() {
+          try {
+            console.log('开始初始化编辑器...');
+            
+            // 初始化画布
+            if (this.treeCanvasManager && typeof this.treeCanvasManager.init === 'function') {
+              this.treeCanvasManager.init();
             }
+            
+            if (this.networkCanvasManager && typeof this.networkCanvasManager.init === 'function') {
+              this.networkCanvasManager.init();
+            }
+            
+            // 绑定事件
+            this._bindEvents();
+            
+            // 初始渲染
+            this.render();
+            
+            console.log('编辑器初始化成功');
+          } catch (error) {
+            console.error('编辑器初始化失败:', error);
+            throw error;
+          }
+        }
+        
+        render() {
+          try {
+            console.log('开始渲染...');
+            
+            // 确保数据服务可用
+            if (!this.graphService || typeof this.graphService.getData !== 'function') {
+              console.error('数据服务不可用');
+              return;
+            }
+            
+            // 获取数据
+            const data = this.graphService.getData();
+            console.log('渲染数据:', data);
+            
+            // 渲染树视图和网络视图
+            if (this.treeCanvasManager && typeof this.treeCanvasManager.render === 'function') {
+              // 尝试获取树结构数据，如果失败则使用普通数据
+              let treeData = data;
+              try {
+                if (typeof this.graphService.getHierarchyTree === 'function') {
+                  const tree = this.graphService.getHierarchyTree();
+                  if (tree) {
+                    // 将树结构转换为节点和边的格式
+                    const nodesSet = new Set();
+                    const edges = [];
+                    
+                    const traverseTree = (treeNode, parentId = null) => {
+                      if (treeNode && treeNode.node) {
+                        nodesSet.add(treeNode.node);
+                        
+                        if (parentId && treeNode.edge) {
+                          edges.push(treeNode.edge);
+                        }
+                        
+                        // 递归处理子节点
+                        if (treeNode.children && treeNode.children.length > 0) {
+                          treeNode.children.forEach(child => {
+                            traverseTree(child, treeNode.node.id);
+                          });
+                        }
+                      }
+                    };
+                    
+                    traverseTree(tree);
+                    treeData = { nodes: Array.from(nodesSet), edges };
+                  }
+                }
+              } catch (treeError) {
+                console.warn('获取树结构数据失败，使用普通数据:', treeError);
+              }
+              
+              this.treeCanvasManager.render(treeData);
+            }
+            
+            if (this.networkCanvasManager && typeof this.networkCanvasManager.render === 'function') {
+              // 尝试获取网络数据，如果失败则使用普通数据
+              let networkData = data;
+              try {
+                if (typeof this.graphService.getNetworkData === 'function') {
+                  networkData = this.graphService.getNetworkData();
+                }
+              } catch (networkError) {
+                console.warn('获取网络数据失败，使用普通数据:', networkError);
+              }
+              
+              this.networkCanvasManager.render(networkData);
+            }
+            
+            console.log('渲染完成');
+          } catch (error) {
+            console.error('渲染过程中发生错误:', error);
+          }
+        }
+        
+        _bindEvents() {
+          try {
+            console.log('绑定事件...');
+            
+            // 模式切换事件
+            if (this.modeManager && typeof this.modeManager.on === 'function') {
+              this.modeManager.on('modeChanged', (mode) => {
+                console.log('模式切换为:', mode);
+                // 模式切换时也触发渲染
+                this.render();
+              });
+            }
+            
+            // 数据变更事件 - 兼容两种事件系统
+            if (this.graphService) {
+              // 方式1: 使用graphService内置的on方法
+              if (typeof this.graphService.on === 'function') {
+                this.graphService.on('dataChanged', () => {
+                  console.log('检测到数据变更(通过graphService.on)，重新渲染');
+                  this.render();
+                });
+              }
+              
+              // 方式2: 使用graphService的eventBus属性
+              if (this.graphService.eventBus && typeof this.graphService.eventBus.on === 'function') {
+                // 监听节点相关事件
+                this.graphService.eventBus.on('nodeAdded', () => {
+                  console.log('节点已添加，重新渲染');
+                  this.render();
+                });
+                
+                this.graphService.eventBus.on('nodeRemoved', () => {
+                  console.log('节点已删除，重新渲染');
+                  this.render();
+                });
+                
+                this.graphService.eventBus.on('nodeUpdated', () => {
+                  console.log('节点已更新，重新渲染');
+                  this.render();
+                });
+                
+                // 监听边相关事件
+                this.graphService.eventBus.on('edgeAdded', () => {
+                  console.log('边已添加，重新渲染');
+                  this.render();
+                });
+                
+                this.graphService.eventBus.on('edgeRemoved', () => {
+                  console.log('边已删除，重新渲染');
+                  this.render();
+                });
+                
+                this.graphService.eventBus.on('edgeUpdated', () => {
+                  console.log('边已更新，重新渲染');
+                  this.render();
+                });
+                
+                // 监听数据加载和变更事件
+                this.graphService.eventBus.on('dataLoaded', () => {
+                  console.log('数据加载完成，重新渲染');
+                  this.render();
+                });
+                
+                this.graphService.eventBus.on('dataChanged', () => {
+                  console.log('检测到数据变更(通过eventBus)，重新渲染');
+                  this.render();
+                });
+              }
+            }
+            
+            // 网络上下文变更事件
+            if (this.eventBus && typeof this.eventBus.on === 'function') {
+              this.eventBus.on('networkContextChanged', (contextId) => {
+                console.log('网络上下文变更:', contextId);
+                if (this.networkCanvasManager && typeof this.networkCanvasManager.setContext === 'function') {
+                  this.networkCanvasManager.setContext(contextId);
+                  // 直接调用render，确保视图更新
+                  this.render();
+                }
+              });
+            }
+            
+            console.log('事件绑定完成');
+          } catch (error) {
+            console.error('绑定事件过程中发生错误:', error);
           }
         }
       }
       
-      // 重置视图
-      function resetView() {
-        if (dualRenderer) {
-          dualRenderer.resetView();
-        }
+      // 初始化双画布编辑器
+      let editor;
+      try {
+        editor = new DualCanvasEditor({
+          treeContainerSelector: '#tree-canvas',
+          networkContainerSelector: '#network-canvas'
+        });
+        
+        // 初始化编辑器
+        editor.init();
+        console.log('编辑器初始化成功');
+      } catch (error) {
+        console.error('编辑器初始化失败:', error);
+        alert('编辑器初始化失败: ' + error.message);
+        return;
       }
       
-      // 绑定事件监听器
-      document.getElementById('generate-data-btn').addEventListener('click', generateAndRenderData);
-      document.getElementById('reset-view-btn').addEventListener('click', resetView);
-      document.getElementById('network-layout').addEventListener('change', updateNetworkLayout);
-      
-      // 保留原有按钮功能，但使用新的渲染器
-      document.getElementById('render-both-btn').addEventListener('click', function() {
-        if (currentData && dualRenderer) {
-          dualRenderer.render(currentData, currentNetworkContext);
-        }
-      });
-      
-      document.getElementById('render-tree-btn').addEventListener('click', function() {
-        if (currentData && dualRenderer && dualRenderer.treeCanvas) {
-          dualRenderer.treeCanvas.render(currentData);
-        }
-      });
-      
-      document.getElementById('render-network-btn').addEventListener('click', function() {
-        if (currentData && dualRenderer && dualRenderer.networkCanvas) {
-          const layoutType = document.getElementById('network-layout').value;
-          dualRenderer.networkCanvas.setLayoutType(layoutType);
-          dualRenderer.networkCanvas.render(currentData);
-        }
-      });
-      
-      // 尝试加载渲染器
-      if (!loadRenderers()) {
-        // 如果首次加载失败，尝试延迟重试
-        setTimeout(() => {
-          loadRenderers();
-          // 如果成功加载，生成并渲染数据
-          if (dualRenderer) {
-            generateAndRenderData();
+      // 在DOM加载完成后再添加事件监听
+        document.addEventListener('DOMContentLoaded', function() {
+          // 模式切换按钮事件监听（使用备用ID以兼容HTML中的实际按钮）
+          const selectBtn = document.getElementById('select-mode-btn') || document.getElementById('mode-select');
+          const nodeBtn = document.getElementById('node-mode-btn') || document.getElementById('mode-node');
+          const edgeBtn = document.getElementById('edge-mode-btn') || document.getElementById('mode-edge') || document.getElementById('relationship-mode-btn');
+          
+          if (selectBtn) {
+            selectBtn.addEventListener('click', function() {
+              // 切换到选择模式
+              console.log('切换到选择模式');
+              // 更新按钮状态
+              updateModeButtons('select');
+            });
           }
-        }, 500);
-      } else {
-        // 首次加载成功，生成并渲染数据
-        generateAndRenderData();
+
+          if (nodeBtn) {
+            nodeBtn.addEventListener('click', function() {
+              // 切换到创建节点模式
+              console.log('切换到创建节点模式');
+              // 更新按钮状态
+              updateModeButtons('node');
+            });
+          }
+
+          if (edgeBtn) {
+            edgeBtn.addEventListener('click', function() {
+              // 切换到创建关系模式
+              console.log('切换到创建关系模式');
+              // 更新按钮状态
+              updateModeButtons('edge');
+            });
+          }
+        });
+      
+      // 更新模式按钮状态
+      function updateModeButtons(activeMode) {
+        document.getElementById('select-mode-btn').classList.toggle('btn-active', activeMode === 'select');
+        document.getElementById('node-mode-btn').classList.toggle('btn-active', activeMode === 'node');
+        document.getElementById('relationship-mode-btn').classList.toggle('btn-active', activeMode === 'relationship');
       }
+      
+      // 为画布添加交互事件
+      function addCanvasInteractions() {
+        // 跟踪当前活动模式
+        let currentMode = 'select'; // 默认选择模式
+        let selectedNodeId = null;
+        let creatingEdge = false;
+        let edgeSourceId = null;
+        
+        // 重置高亮状态的函数
+        function resetHighlights() {
+          document.querySelectorAll('circle[data-id]').forEach(circle => {
+            // 恢复基于节点类型的颜色
+            const nodeType = circle.getAttribute('data-type') || 'default';
+            const color = nodeType === 'root' ? '#e74c3c' : 
+                         nodeType === 'child' ? '#3498db' : 
+                         nodeType === 'grandchild' ? '#2ecc71' : '#3498db';
+            circle.setAttribute('fill', color);
+          });
+        }
+        
+        // 更新模式函数
+        function setCurrentMode(mode) {
+          currentMode = mode;
+          console.log('当前模式已切换为:', mode);
+          
+          // 重置状态
+          if (mode !== 'edge') {
+            creatingEdge = false;
+            edgeSourceId = null;
+            resetHighlights();
+          }
+        }
+        
+        // 为模式按钮添加模式设置功能（使用备用ID以兼容HTML中的实际按钮）
+        const selectBtn = document.getElementById('select-mode-btn') || document.getElementById('mode-select');
+        const nodeBtn = document.getElementById('node-mode-btn') || document.getElementById('mode-node');
+        const edgeBtn = document.getElementById('edge-mode-btn') || document.getElementById('mode-edge') || document.getElementById('relationship-mode-btn');
+        
+        if (selectBtn) {
+          selectBtn.addEventListener('click', function() {
+            setCurrentMode('select');
+            if (typeof updateModeButtons === 'function') {
+              updateModeButtons('select');
+            }
+          });
+        }
+        if (nodeBtn) {
+          nodeBtn.addEventListener('click', function() {
+            setCurrentMode('node');
+            if (typeof updateModeButtons === 'function') {
+              updateModeButtons('node');
+            }
+          });
+        }
+        if (edgeBtn) {
+          edgeBtn.addEventListener('click', function() {
+            setCurrentMode('edge');
+            if (typeof updateModeButtons === 'function') {
+              updateModeButtons('relationship');
+            }
+          });
+        }
+        
+        const canvases = [
+          { selector: '#tree-canvas svg', name: '树视图' },
+          { selector: '#network-canvas svg', name: '网络视图' }
+        ];
+        
+        canvases.forEach(canvasInfo => {
+          const canvas = document.querySelector(canvasInfo.selector);
+          if (canvas) {
+            // 点击事件处理
+            canvas.addEventListener('click', function(event) {
+              // 检查是否点击了节点
+              const clickedNode = event.target.closest('circle[data-id]');
+              
+              console.log(`${canvasInfo.name}点击事件 - 模式: ${currentMode}`);
+              
+              switch(currentMode) {
+                case 'select':
+                  if (clickedNode) {
+                    const nodeId = clickedNode.getAttribute('data-id');
+                    console.log(`选中${canvasInfo.name}中的节点:`, nodeId);
+                    selectedNodeId = nodeId;
+                      
+                    // 重置所有高亮
+                    resetHighlights();
+                    // 高亮选中节点
+                    clickedNode.setAttribute('fill', '#e74c3c');
+                  } else {
+                    console.log(`点击${canvasInfo.name}空白区域，取消选中`);
+                    selectedNodeId = null;
+                    // 重置高亮
+                    resetHighlights();
+                  }
+                  break;
+                   
+                case 'node':
+                  if (!clickedNode && editor && editor.graphService) {
+                    // 在点击位置创建新节点
+                    const rect = canvas.getBoundingClientRect();
+                    const x = event.clientX - rect.left;
+                    const y = event.clientY - rect.top;
+                      
+                    console.log(`在${canvasInfo.name}创建新节点，位置:`, { x, y });
+                      
+                    // 创建新节点
+                    const newNode = {
+                      x: x,
+                      y: y,
+                      type: 'default',
+                      properties: {
+                        name: `新节点`,
+                        description: '新创建的节点',
+                        createdAt: new Date().toISOString()
+                      }
+                    };
+                    
+                    editor.graphService.addNode(newNode);
+                  }
+                  break;
+                   
+                case 'edge':
+                  if (clickedNode) {
+                    const nodeId = clickedNode.getAttribute('data-id');
+                      
+                    if (!creatingEdge) {
+                      // 开始创建关系
+                      creatingEdge = true;
+                      edgeSourceId = nodeId;
+                      console.log(`开始创建关系，源节点:`, nodeId);
+                       
+                      // 重置高亮
+                      resetHighlights();
+                      // 高亮源节点
+                      clickedNode.setAttribute('fill', '#27ae60');
+                    } else {
+                      // 完成创建关系
+                      if (edgeSourceId !== nodeId) { // 避免自环
+                        console.log(`完成创建关系，目标节点:`, nodeId);
+                           
+                        if (editor && editor.graphService && typeof editor.graphService.addEdge === 'function') {
+                          const edge = {
+                            source: edgeSourceId,
+                            target: nodeId,
+                            type: 'RELATES_TO',
+                            label: '关系',
+                            properties: {
+                              createdAt: new Date().toISOString()
+                            }
+                          };
+                          editor.graphService.addEdge(edge);
+                        }
+                      } else {
+                        console.log('不能创建自环关系');
+                      }
+                       
+                      // 重置状态
+                      creatingEdge = false;
+                      edgeSourceId = null;
+                      resetHighlights();
+                    }
+                  } else if (creatingEdge) {
+                    // 取消创建关系
+                    console.log('取消创建关系');
+                    creatingEdge = false;
+                    edgeSourceId = null;
+                    resetHighlights();
+                  }
+                  break;
+              }
+            });
+             
+            // 右键菜单支持 - 增加关系删除功能
+            canvas.addEventListener('contextmenu', function(event) {
+              event.preventDefault();
+              
+              // 检查是否点击了节点或关系
+              const clickedNode = event.target.closest('circle[data-id]');
+              const clickedEdge = event.target.closest('line[data-id]');
+              
+              if (clickedNode && editor && editor.graphService && typeof editor.graphService.removeNode === 'function') {
+                const nodeId = clickedNode.getAttribute('data-id');
+                console.log(`右键点击节点:`, nodeId);
+                
+                if (confirm('确定要删除此节点吗？相关关系也将被删除。')) {
+                  editor.graphService.removeNode(nodeId);
+                  selectedNodeId = null;
+                }
+              } else if (clickedEdge && editor && editor.graphService && typeof editor.graphService.removeEdge === 'function') {
+                const edgeId = clickedEdge.getAttribute('data-id');
+                console.log(`右键点击关系:`, edgeId);
+                
+                if (confirm('确定要删除此关系吗？')) {
+                  editor.graphService.removeEdge(edgeId);
+                }
+              }
+            });
+            
+            // 双击事件 - 用于下钻或切换视图上下文
+            canvas.addEventListener('dblclick', function(event) {
+              const clickedNode = event.target.closest('circle[data-id]');
+              if (clickedNode) {
+                const nodeId = clickedNode.getAttribute('data-id');
+                console.log(`双击节点:`, nodeId);
+                
+                // 如果是树视图，切换网络视图的上下文到该节点
+                if (canvasInfo.name === '树视图' && editor && editor.networkCanvasManager) {
+                  editor.networkCanvasManager.setContext(nodeId);
+                  if (editor.render) {
+                    editor.render();
+                  }
+                }
+              }
+            });
+          }
+        });
+        
+        // 监听渲染完成事件，更新高亮状态
+        if (editor && editor.eventBus && typeof editor.eventBus.on === 'function') {
+          editor.eventBus.on('renderComplete', resetHighlights);
+        }
+      }
+      
+      // 添加交互功能
+      setTimeout(addCanvasInteractions, 1000); // 延迟添加，确保编辑器初始化完成
+      
+      // 生成新数据按钮
+      document.getElementById('generate-data-btn').addEventListener('click', function() {
+        const nodeCount = parseInt(document.getElementById('node-count').value) || 10;
+        const edgeCount = parseInt(document.getElementById('edge-count').value) || 15;
+        
+        // 清空现有数据
+        graphService.setData({ nodes: [], edges: [] });
+        
+        // 生成新数据
+        createSampleData(graphService, GraphUtils, nodeCount, edgeCount);
+        
+        console.log('生成新数据成功');
+      });
+      
+      // 重置视图按钮
+      document.getElementById('reset-view-btn').addEventListener('click', function() {
+        // 重置网络视图上下文
+        if (editor && editor.networkCanvasManager) {
+          editor.networkCanvasManager.setContext(null);
+        }
+        // 重置缩放和平移
+        if (editor && editor.treeCanvasManager) {
+          editor.treeCanvasManager.zoom = 1.0;
+          editor.treeCanvasManager.pan = { x: 0, y: 0 };
+          editor.treeCanvasManager.render();
+        }
+        if (editor && editor.networkCanvasManager) {
+          editor.networkCanvasManager.zoom = 1.0;
+          editor.networkCanvasManager.pan = { x: 0, y: 0 };
+          editor.networkCanvasManager.render();
+        }
+      });
+      
+      // 网络布局变化监听
+      document.getElementById('network-layout').addEventListener('change', function() {
+        const layoutType = this.value;
+        if (editor && editor.networkCanvasManager) {
+          editor.networkCanvasManager.options.forceSimulation = layoutType === 'force';
+          // 触发重新渲染
+          editor.networkCanvasManager.render();
+        }
+      });
       
       console.log('演示脚本加载完成');
     });
   </script>
+  <script src="enhanced-interactions.js"></script>
 </body>
-</html>
+</html>

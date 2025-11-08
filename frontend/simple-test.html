@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简化版双画布测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .canvas-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        #network-canvas-container,
+        #tree-canvas-container {
+            flex: 1;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: 400px;
+            overflow: hidden;
+            position: relative;
+        }
+        .controls {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f0f0f0;
+            cursor: pointer;
+        }
+        .log-container {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>简化版双画布测试</h1>
+    
+    <div class="controls">
+        <button id="init-btn">初始化双画布</button>
+        <button id="destroy-btn">销毁双画布</button>
+    </div>
+    
+    <div class="canvas-container">
+        <div id="network-canvas-container">
+            <div style="text-align: center; padding: 20px; color: #666;">关系网视图</div>
+        </div>
+        <div id="tree-canvas-container">
+            <div style="text-align: center; padding: 20px; color: #666;">层级树视图</div>
+        </div>
+    </div>
+    
+    <div class="log-container">
+        <h3>事件日志</h3>
+        <div id="log-output"></div>
+    </div>
+
+    <script>
+        // 简单的事件总线
+        function createEventBus() {
+            var listeners = {};
+            return {
+                on: function(event, callback) {
+                    if (!listeners[event]) {
+                        listeners[event] = [];
+                    }
+                    listeners[event].push(callback);
+                },
+                emit: function(event, data) {
+                    if (listeners[event]) {
+                        for (var i = 0; i < listeners[event].length; i++) {
+                            try {
+                                listeners[event][i](data);
+                            } catch (e) {
+                                console.error(e);
+                            }
+                        }
+                    }
+                }
+            };
+        }
+        
+        // 简单的渲染器
+        function createSimpleRenderer() {
+            var canvas, ctx, container;
+            return {
+                initialize: function(containerEl) {
+                    container = containerEl;
+                    canvas = document.createElement('canvas');
+                    canvas.width = container.clientWidth;
+                    canvas.height = container.clientHeight;
+                    container.appendChild(canvas);
+                    ctx = canvas.getContext('2d');
+                    
+                    // 清除提示文本
+                    var hint = container.querySelector('div');
+                    if (hint) {
+                        hint.parentNode.removeChild(hint);
+                    }
+                    
+                    log('渲染器已初始化');
+                },
+                render: function(data) {
+                    if (!ctx) return;
+                    
+                    // 清除画布
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 绘制简单网格
+                    ctx.strokeStyle = '#f0f0f0';
+                    ctx.lineWidth = 1;
+                    for (var x = 0; x < canvas.width; x += 20) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, 0);
+                        ctx.lineTo(x, canvas.height);
+                        ctx.stroke();
+                    }
+                    for (var y = 0; y < canvas.height; y += 20) {
+                        ctx.beginPath();
+                        ctx.moveTo(0, y);
+                        ctx.lineTo(canvas.width, y);
+                        ctx.stroke();
+                    }
+                    
+                    // 绘制一个简单的节点
+                    ctx.beginPath();
+                    ctx.arc(canvas.width/2, canvas.height/2, 30, 0, Math.PI * 2);
+                    ctx.fillStyle = '#2196F3';
+                    ctx.fill();
+                    ctx.strokeStyle = '#1976D2';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    // 绘制文字
+                    ctx.fillStyle = 'white';
+                    ctx.font = '14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('Test', canvas.width/2, canvas.height/2);
+                    
+                    log('渲染完成');
+                },
+                resize: function(width, height) {
+                    if (canvas) {
+                        canvas.width = width;
+                        canvas.height = height;
+                    }
+                },
+                getCanvas: function() {
+                    return canvas;
+                },
+                getMousePos: function(event) {
+                    var rect = canvas.getBoundingClientRect();
+                    return {
+                        x: event.clientX - rect.left,
+                        y: event.clientY - rect.top
+                    };
+                },
+                destroy: function() {
+                    if (canvas && container) {
+                        container.removeChild(canvas);
+                    }
+                    canvas = null;
+                    ctx = null;
+                    container = null;
+                }
+            };
+        }
+        
+        // 日志函数
+        function log(message) {
+            var logOutput = document.getElementById('log-output');
+            var logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
+            logOutput.appendChild(logEntry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+        
+        var dualCanvasManager = null;
+        
+        document.getElementById('init-btn').addEventListener('click', function() {
+            try {
+                if (dualCanvasManager) {
+                    log('已存在，先销毁');
+                    dualCanvasManager.destroy();
+                }
+                
+                var eventBus = createEventBus();
+                var networkRenderer = createSimpleRenderer();
+                var treeRenderer = createSimpleRenderer();
+                
+                // 初始化渲染器
+                var networkContainer = document.getElementById('network-canvas-container');
+                var treeContainer = document.getElementById('tree-canvas-container');
+                
+                networkRenderer.initialize(networkContainer);
+                treeRenderer.initialize(treeContainer);
+                
+                networkRenderer.render({});
+                treeRenderer.render({});
+                
+                // 创建简单的管理器
+                dualCanvasManager = {
+                    destroy: function() {
+                        networkRenderer.destroy();
+                        treeRenderer.destroy();
+                        log('双画布已销毁');
+                    }
+                };
+                
+                log('初始化成功');
+            } catch (error) {
+                log('错误: ' + error.message);
+                console.error(error);
+            }
+        });
+        
+        document.getElementById('destroy-btn').addEventListener('click', function() {
+            if (dualCanvasManager) {
+                dualCanvasManager.destroy();
+                dualCanvasManager = null;
+            }
+        });
+        
+        window.addEventListener('resize', function() {
+            log('窗口大小变化');
+        });
+        
+        log('页面已加载');
+    </script>
+</body>
+</html>

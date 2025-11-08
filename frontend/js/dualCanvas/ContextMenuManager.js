@@ -400,38 +400,18 @@ class ContextMenuManager {
   }
 }
 
-// 简单的事件总线实现（如果未提供）
-class EventBus {
-  constructor() {
-    this.listeners = {};
-  }
-  
-  on(event, callback) {
-    if (!this.listeners[event]) {
-      this.listeners[event] = [];
+// 使用应用程序的统一事件总线
+// 确保应用已经加载了统一的事件总线模块
+if (!window.eventBus) {
+  console.warn('统一事件总线未加载，尝试初始化');
+  // 如果全局事件总线不存在，导入公共事件总线模块
+  if (typeof require === 'function') {
+    try {
+      const EventBusModule = require('../common/EventBus');
+      window.eventBus = EventBusModule.getInstance();
+    } catch (e) {
+      console.error('无法加载公共事件总线模块:', e);
     }
-    this.listeners[event].push(callback);
-    
-    // 返回取消监听函数
-    return () => this.off(event, callback);
-  }
-  
-  emit(event, ...args) {
-    if (!this.listeners[event]) {
-      return;
-    }
-    
-    for (const callback of this.listeners[event]) {
-      callback(...args);
-    }
-  }
-  
-  off(event, callback) {
-    if (!this.listeners[event]) {
-      return;
-    }
-    
-    this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
   }
 }
 

@@ -8,6 +8,12 @@ class EventSimulator {
   constructor(eventManager) {
     this.eventManager = eventManager;
     
+    // 获取事件总线实例
+    this.eventBus = eventManager.eventBus || window.enhancedEventBus || window.eventBus;
+    
+    // 获取事件常量
+    this.Events = eventManager.Events || window.Events;
+    
     // 模拟数据
     this.mockNodes = [];
     this.mockRelationships = [];

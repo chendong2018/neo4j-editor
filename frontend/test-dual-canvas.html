@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双画布事件交互测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .canvas-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        #network-canvas-container,
+        #tree-canvas-container {
+            flex: 1;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: 400px;
+            overflow: hidden;
+            position: relative;
+        }
+        .controls {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f0f0f0;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #e0e0e0;
+        }
+        .log-container {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .log-info { color: blue; }
+        .log-event { color: green; }
+        .log-error { color: red; }
+        .mode-indicator {
+            margin-top: 10px;
+            padding: 8px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>双画布事件交互测试</h1>
+        
+        <div class="controls">
+            <div class="button-group">
+                <button id="init-btn">初始化双画布</button>
+                <button id="destroy-btn">销毁双画布</button>
+                <button id="refresh-btn">刷新视图</button>
+                <button id="clear-selection-btn">清除选择</button>
+            </div>
+            
+            <div class="button-group">
+                <button id="mode-select-btn">选择模式</button>
+                <button id="mode-node-btn">节点模式</button>
+                <button id="mode-relationship-btn">关系模式</button>
+            </div>
+            
+            <div class="button-group">
+                <button id="zoom-to-fit-btn">缩放适配</button>
+                <button id="reset-view-btn">重置视图</button>
+                <button id="test-event-btn">测试事件总线</button>
+            </div>
+            
+            <div class="mode-indicator">
+                当前模式: <span id="current-mode">未初始化</span>
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <div id="network-canvas-container">
+                <div style="text-align: center; padding: 20px; color: #666;">关系网视图</div>
+            </div>
+            <div id="tree-canvas-container">
+                <div style="text-align: center; padding: 20px; color: #666;">层级树视图</div>
+            </div>
+        </div>
+        
+        <div class="log-container">
+            <h3>事件日志</h3>
+            <div id="log-output"></div>
+        </div>
+    </div>
+
+    <!-- 简单的事件总线实现 -->
+    <script>
+        // 简单的事件总线实现
+        class EventBus {
+            constructor() {
+                this.listeners = {};
+            }
+            
+            on(event, listener) {
+                if (!this.listeners[event]) {
+                    this.listeners[event] = [];
+                }
+                this.listeners[event].push(listener);
+            }
+            
+            off(event, listener) {
+                if (!this.listeners[event]) return;
+                this.listeners[event] = this.listeners[event].filter(l => l !== listener);
+            }
+            
+            emit(event, ...args) {
+                if (!this.listeners[event]) return;
+                this.listeners[event].forEach(listener => {
+                    try {
+                        listener(...args);
+                    } catch (error) {
+                        console.error(`Error in event listener for ${event}:`, error);
+                    }
+                });
+            }
+        }
+    </script>
+    
+    <!-- 引入双画布相关模块 -->
+    <script src="../js/dualCanvas/CanvasManager.js"></script>
+    <script src="../js/dualCanvas/NetworkCanvasManager.js"></script>
+    <script src="../js/dualCanvas/TreeCanvasManager.js"></script>
+    <script src="../js/dualCanvas/DualCanvasManager.js"></script>
+    
+    <script>
+        // 简单的模式管理器
+        class SimpleModeManager {
+            constructor() {
+                this.currentMode = 'select';
+                this.listeners = [];
+            }
+            
+            getCurrentMode() {
+                return this.currentMode;
+            }
+            
+            setMode(mode) {
+                this.currentMode = mode;
+                this.listeners.forEach(listener => listener(mode));
+            }
+            
+            onModeChange(listener) {
+                this.listeners.push(listener);
+            }
+        }
+        
+        // 简单的图数据服务
+        class SimpleGraphService {
+            constructor() {
+                this.nodes = [];
+                this.relationships = [];
+            }
+            
+            getNodes() {
+                return this.nodes;
+            }
+            
+            getRelationships() {
+                return this.relationships;
+            }
+            
+            _findChildNodes(parentId) {
+                return this.relationships
+                    .filter(r => r.startNode === parentId)
+                    .map(r => this.nodes.find(n => n.id === r.endNode))
+                    .filter(Boolean);
+            }
+        }
+        
+        // 简单的渲染器
+        class SimpleRenderer {
+            constructor() {
+                this.canvas = null;
+                this.ctx = null;
+                this.container = null;
+            }
+            
+            initialize(container) {
+                this.container = container;
+                this.canvas = document.createElement('canvas');
+                this.canvas.className = 'graph-canvas';
+                this.container.appendChild(this.canvas);
+                this.ctx = this.canvas.getContext('2d');
+                
+                // 清除容器中的提示文本
+                const hint = container.querySelector('div');
+                if (hint) hint.remove();
+                
+                log('渲染器已初始化', 'info');
+            }
+            
+            render(data) {
+                if (!this.ctx || !data) return;
+                
+                // 清除画布
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // 应用变换
+                this.ctx.save();
+                this.ctx.translate(data.pan?.x || 0, data.pan?.y || 0);
+                this.ctx.scale(data.zoom || 1, data.zoom || 1);
+                
+                // 绘制简单的网格背景
+                this._drawGrid();
+                
+                // 如果有数据，渲染节点和关系
+                if (data.relationships && data.relationships.length > 0) {
+                    this._renderRelationships(data.relationships, data.selectedRelationship);
+                }
+                
+                if (data.nodes && data.nodes.length > 0) {
+                    this._renderNodes(data.nodes, data.selectedNodes);
+                } else {
+                    // 显示示例节点
+                    this._renderExampleNodes();
+                }
+                
+                this.ctx.restore();
+                
+                log('渲染完成', 'event');
+            }
+            
+            _drawGrid() {
+                const gridSize = 20;
+                this.ctx.strokeStyle = '#f0f0f0';
+                this.ctx.lineWidth = 1;
+                
+                // 绘制垂直网格线
+                for (let x = -1000; x <= 1000; x += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, -1000);
+                    this.ctx.lineTo(x, 1000);
+                    this.ctx.stroke();
+                }
+                
+                // 绘制水平网格线
+                for (let y = -1000; y <= 1000; y += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(-1000, y);
+                    this.ctx.lineTo(1000, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            _renderNodes(nodes, selectedNodes) {
+                nodes.forEach(node => {
+                    const isSelected = selectedNodes && typeof selectedNodes.has === 'function' && selectedNodes.has(node.id) || false;
+                    
+                    // 绘制节点
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x || 0, node.y || 0, 20, 0, Math.PI * 2);
+                    this.ctx.fillStyle = isSelected ? '#4CAF50' : '#2196F3';
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = isSelected ? '#388E3C' : '#1976D2';
+                    this.ctx.lineWidth = isSelected ? 3 : 2;
+                    this.ctx.stroke();
+                    
+                    // 绘制节点标签
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(node.id.substring(0, 4), node.x || 0, node.y || 0);
+                });
+            }
+            
+            _renderRelationships(relationships, selectedRelationship) {
+                relationships.forEach(rel => {
+                    const isSelected = rel.id === selectedRelationship;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(rel.startX || 0, rel.startY || 0);
+                    this.ctx.lineTo(rel.endX || 0, rel.endY || 0);
+                    this.ctx.strokeStyle = isSelected ? '#F44336' : '#757575';
+                    this.ctx.lineWidth = isSelected ? 3 : 2;
+                    this.ctx.stroke();
+                });
+            }
+            
+            _renderExampleNodes() {
+                // 绘制几个示例节点
+                const nodes = [
+                    { id: 'n1', x: -100, y: 0 },
+                    { id: 'n2', x: 0, y: 0 },
+                    { id: 'n3', x: 100, y: 0 }
+                ];
+                
+                this._renderNodes(nodes, new Set());
+                
+                // 绘制示例关系
+                const relationships = [
+                    { id: 'r1', startX: -100, startY: 0, endX: 0, endY: 0 },
+                    { id: 'r2', startX: 0, startY: 0, endX: 100, endY: 0 }
+                ];
+                
+                this._renderRelationships(relationships, null);
+            }
+            
+            resize(width, height) {
+                if (this.canvas) {
+                    this.canvas.width = width;
+                    this.canvas.height = height;
+                }
+            }
+            
+            getCanvas() {
+                return this.canvas;
+            }
+            
+            getMousePos(event) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top
+                };
+            }
+            
+            destroy() {
+                if (this.canvas && this.container) {
+                    this.container.removeChild(this.canvas);
+                }
+                this.canvas = null;
+                this.ctx = null;
+                this.container = null;
+            }
+        }
+        
+        // 日志记录函数
+        function log(message, type = 'info') {
+            const logOutput = document.getElementById('log-output');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logOutput.appendChild(logEntry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+        
+        // 全局对象
+        let dualCanvasManager = null;
+        let eventBus = null;
+        let modeManager = null;
+        let graphService = null;
+        
+        // 初始化按钮点击事件
+        document.getElementById('init-btn').addEventListener('click', () => {
+            try {
+                if (dualCanvasManager) {
+                    log('双画布管理器已存在，先销毁', 'info');
+                    dualCanvasManager.destroy();
+                }
+                
+                // 创建事件总线
+                eventBus = new EventBus();
+                
+                // 创建模式管理器
+                modeManager = new SimpleModeManager();
+                
+                // 创建图数据服务
+                graphService = new SimpleGraphService();
+                
+                // 创建渲染器
+                const networkRenderer = new SimpleRenderer();
+                const treeRenderer = new SimpleRenderer();
+                
+                // 初始化双画布管理器
+                dualCanvasManager = new DualCanvasManager({
+                    networkContainerSelector: '#network-canvas-container',
+                    treeContainerSelector: '#tree-canvas-container',
+                    graphService: graphService,
+                    eventBus: eventBus,
+                    modeManager: modeManager,
+                    networkRenderer: networkRenderer,
+                    treeRenderer: treeRenderer
+                });
+                
+                dualCanvasManager.init();
+                
+                // 监听事件总线的各种事件
+                eventBus.on('canvasInitialized', () => log('画布初始化完成', 'event'));
+                eventBus.on('canvasRendered', () => log('画布渲染完成', 'event'));
+                eventBus.on('canvasDestroyed', () => log('画布销毁完成', 'event'));
+                eventBus.on('dualCanvasInitialized', () => log('双画布初始化完成', 'event'));
+                eventBus.on('dualCanvasDestroyed', () => log('双画布销毁完成', 'event'));
+                eventBus.on('modeChanged', (mode) => log(`模式切换: ${mode}`, 'event'));
+                eventBus.on('selectionChanged', () => log('选择状态变更', 'event'));
+                eventBus.on('networkContextChanged', (contextId) => log(`关系网上下文变更: ${contextId}`, 'event'));
+                eventBus.on('renderersUpdated', () => log('渲染器更新', 'event'));
+                
+                log('双画布初始化成功', 'info');
+                updateModeIndicator();
+            } catch (error) {
+                log(`初始化失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        });
+        
+        // 销毁按钮点击事件
+        document.getElementById('destroy-btn').addEventListener('click', () => {
+            try {
+                if (dualCanvasManager) {
+                    dualCanvasManager.destroy();
+                    dualCanvasManager = null;
+                    log('双画布销毁成功', 'info');
+                    document.getElementById('current-mode').textContent = '未初始化';
+                } else {
+                    log('双画布管理器不存在', 'info');
+                }
+            } catch (error) {
+                log(`销毁失败: ${error.message}`, 'error');
+            }
+        });
+        
+        // 刷新按钮点击事件
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            try {
+                if (dualCanvasManager) {
+                    dualCanvasManager.refresh();
+                    log('视图刷新成功', 'info');
+                } else {
+                    log('双画布管理器未初始化', 'info');
+                }
+            } catch (error) {
+                log(`刷新失败: ${error.message}`, 'error');
+            }
+        });
+        
+        // 清除选择按钮点击事件
+        document.getElementById('clear-selection-btn').addEventListener('click', () => {
+            try {
+                if (dualCanvasManager) {
+                    dualCanvasManager.clearSelection();
+                    log('选择已清除', 'info');
+                } else {
+                    log('双画布管理器未初始化', 'info');
+                }
+            } catch (error) {
+                log(`清除选择失败: ${error.message}`, 'error');
+            }
+        });
+        
+        // 模式切换按钮点击事件
+        document.getElementById('mode-select-btn').addEventListener('click', () => setMode('select'));
+        document.getElementById('mode-node-btn').addEventListener('click', () => setMode('node'));
+        document.getElementById('mode-relationship-btn').addEventListener('click', () => setMode('relationship'));
+        
+        // 缩放适配按钮点击事件
+        document.getElementById('zoom-to-fit-btn').addEventListener('click', () => {
+            if (eventBus) {
+                eventBus.emit('zoomToFit');
+                log('触发缩放适配事件', 'info');
+            }
+        });
+        
+        // 重置视图按钮点击事件
+        document.getElementById('reset-view-btn').addEventListener('click', () => {
+            if (eventBus) {
+                eventBus.emit('resetView');
+                log('触发重置视图事件', 'info');
+            }
+        });
+        
+        // 测试事件总线按钮点击事件
+        document.getElementById('test-event-btn').addEventListener('click', () => {
+            if (eventBus) {
+                // 测试节点选择事件
+                eventBus.emit('nodeSelected', { nodeId: 'test-node' });
+                log('触发节点选择测试事件', 'info');
+                
+                // 延迟触发关系选择事件
+                setTimeout(() => {
+                    eventBus.emit('relationshipSelected', { relationshipId: 'test-relationship' });
+                    log('触发关系选择测试事件', 'info');
+                }, 500);
+            }
+        });
+        
+        // 设置模式函数
+        function setMode(mode) {
+            try {
+                if (modeManager) {
+                    modeManager.setMode(mode);
+                    if (eventBus) {
+                        eventBus.emit('modeChanged', mode);
+                    }
+                    log(`模式设置为: ${mode}`, 'info');
+                    updateModeIndicator();
+                } else {
+                    log('模式管理器未初始化', 'info');
+                }
+            } catch (error) {
+                log(`设置模式失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 更新模式指示器
+        function updateModeIndicator() {
+            if (modeManager) {
+                document.getElementById('current-mode').textContent = modeManager.getCurrentMode();
+            }
+        }
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', () => {
+            log('窗口大小变化，调整画布', 'info');
+        });
+        
+        log('测试页面已加载，点击初始化按钮开始测试', 'info');
+    </script>
+</body>
+</html>

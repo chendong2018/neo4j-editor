@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>事件总线测试页面</title>
+  <link rel="stylesheet" href="../../css/main.css">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f7fa;
+    }
+    
+    h1 {
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+    }
+    
+    .test-header {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    .test-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    #run-tests {
+      background-color: #27ae60;
+      color: white;
+    }
+    
+    #run-tests:hover {
+      background-color: #229954;
+    }
+    
+    #clear-output {
+      background-color: #7f8c8d;
+      color: white;
+    }
+    
+    #clear-output:hover {
+      background-color: #707b7c;
+    }
+    
+    .test-info {
+      background-color: #ecf0f1;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    
+    #test-output {
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      height: 500px;
+      overflow-y: auto;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+    
+    .test-result {
+      margin-bottom: 10px;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+      border-left: 4px solid #28a745;
+    }
+    
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border-left: 4px solid #dc3545;
+    }
+    
+    .info {
+      background-color: #e9ecef;
+      color: #495057;
+      border-left: 4px solid #6c757d;
+    }
+    
+    .test-summary {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .summary-item {
+      display: inline-block;
+      margin-right: 20px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    
+    .summary-success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    
+    .summary-error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <h1>事件总线 (EventBus) 功能测试</h1>
+  
+  <div class="test-header">
+    <h2>测试控制</h2>
+    <div class="test-controls">
+      <button id="run-tests">运行所有测试</button>
+      <button id="clear-output">清空输出</button>
+    </div>
+    
+    <div class="test-info">
+      <h3>测试说明</h3>
+      <ul>
+        <li>此页面用于验证事件总线 (EventBus) 的所有核心功能</li>
+        <li>包括：单例模式、事件注册/触发、事件移除、一次性事件、事件优先级等</li>
+        <li>点击"运行所有测试"按钮开始执行测试</li>
+      </ul>
+    </div>
+  </div>
+  
+  <div id="test-output">
+    <div class="info">测试未开始，请点击上方的"运行所有测试"按钮。</div>
+  </div>
+  
+  <div class="test-summary" id="test-summary">
+    <h3>测试结果统计</h3>
+    <div class="summary-item summary-success">通过: <span id="success-count">0</span></div>
+    <div class="summary-item summary-error">失败: <span id="error-count">0</span></div>
+  </div>
+
+  <!-- 引入事件总线模块 -->
+  <script src="../common/eventBus.js"></script>
+  
+  <!-- 引入测试脚本 -->
+  <script src="eventBus.test.js"></script>
+  
+  <script>
+    // DOM元素引用
+    const runTestsBtn = document.getElementById('run-tests');
+    const clearOutputBtn = document.getElementById('clear-output');
+    const testOutput = document.getElementById('test-output');
+    const successCountEl = document.getElementById('success-count');
+    const errorCountEl = document.getElementById('error-count');
+    
+    // 统计数据
+    let successCount = 0;
+    let errorCount = 0;
+    
+    // 重定向console.log和console.error到页面
+    function redirectConsole() {
+      const originalLog = console.log;
+      const originalError = console.error;
+      
+      console.log = function(message) {
+        // 调用原始的console.log
+        originalLog.apply(console, arguments);
+        
+        // 显示在页面上
+        const div = document.createElement('div');
+        div.className = message && message.includes('✓') ? 'test-result success' : 'test-result info';
+        
+        if (typeof message === 'object') {
+          div.textContent = JSON.stringify(message, null, 2);
+        } else {
+          div.textContent = message;
+        }
+        
+        testOutput.appendChild(div);
+        
+        // 如果是成功消息，更新统计
+        if (message && message.includes('✓')) {
+          successCount++;
+          updateSummary();
+        }
+        
+        // 滚动到底部
+        testOutput.scrollTop = testOutput.scrollHeight;
+      };
+      
+      console.error = function(message) {
+        // 调用原始的console.error
+        originalError.apply(console, arguments);
+        
+        // 显示在页面上
+        const div = document.createElement('div');
+        div.className = 'test-result error';
+        
+        if (typeof message === 'object') {
+          div.textContent = JSON.stringify(message, null, 2);
+        } else {
+          div.textContent = message;
+        }
+        
+        testOutput.appendChild(div);
+        
+        // 更新错误统计
+        errorCount++;
+        updateSummary();
+        
+        // 滚动到底部
+        testOutput.scrollTop = testOutput.scrollHeight;
+      };
+    }
+    
+    // 更新统计信息
+    function updateSummary() {
+      successCountEl.textContent = successCount;
+      errorCountEl.textContent = errorCount;
+    }
+    
+    // 运行测试
+    runTestsBtn.addEventListener('click', function() {
+      // 重置统计
+      successCount = 0;
+      errorCount = 0;
+      updateSummary();
+      
+      // 清空输出
+      testOutput.innerHTML = '<div class="info">开始运行测试...</div>';
+      
+      // 确保事件总线已加载
+      if (!window.EventBus) {
+        console.error('错误: EventBus模块未加载成功');
+        return;
+      }
+      
+      // 运行测试
+      try {
+        window.runEventBusTests();
+        console.log('\n测试运行完毕!');
+      } catch (error) {
+        console.error('测试执行过程中发生错误:', error);
+      }
+    });
+    
+    // 清空输出
+    clearOutputBtn.addEventListener('click', function() {
+      testOutput.innerHTML = '<div class="info">测试输出已清空，请点击上方的"运行所有测试"按钮。</div>';
+      successCount = 0;
+      errorCount = 0;
+      updateSummary();
+    });
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      redirectConsole();
+      
+      // 检查事件总线是否已加载
+      if (window.EventBus) {
+        console.log('✓ EventBus模块已成功加载');
+        console.log('  版本:', window.EventBus.version || '未知版本');
+        console.log('  单例模式:', 'getInstance' in window.EventBus ? '已实现' : '未实现');
+      } else {
+        console.error('✗ EventBus模块加载失败，请检查路径是否正确');
+      }
+    });
+  </script>
+</body>
+</html>

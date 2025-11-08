@@ -1,5 +1,5 @@
 /**
- * 事件总线适配器 - dualCanvas目录
+ * 事件总线适配器 - events目录
  * 
  * 此文件是一个轻量级适配器，直接使用公共模块中的EventBus实现和全局事件常量。
  * 保持向后兼容性，同时确保整个应用使用统一的事件总线实例和事件常量。
@@ -10,30 +10,25 @@ if (typeof window === 'undefined' || !window.EventBus || !window.Events) {
   console.error('错误: 公共EventBus模块未正确加载，请确保在HTML中正确引入 ../common/EventBus.js');
 }
 
-// 直接使用全局事件常量，并为dualCanvas模块提供别名映射（保持向后兼容）
-export const DualCanvasEvents = window.Events || {};
+// 直接导出全局事件常量的引用（保持向后兼容）
+export const Events = window.Events || {};
 export const EventTypes = window.EventTypes || {};
 
 // 事件总线适配器 - 保持向后兼容性
-class DualCanvasEventBus {
+class EventAdapter {
   constructor() {
     // 直接使用全局事件总线实例
     this._eventBus = window.eventBus;
-    
-    // 注册dualCanvas模块到全局事件总线
-    if (this._eventBus && this._eventBus.registerModuleEvents) {
-      this._eventBus.registerModuleEvents('dualCanvas', DualCanvasEvents);
-    }
   }
   
   /**
    * 获取事件总线实例的便捷方法
    */
   static getInstance() {
-    if (!DualCanvasEventBus._instance) {
-      DualCanvasEventBus._instance = new DualCanvasEventBus();
+    if (!EventAdapter._instance) {
+      EventAdapter._instance = new EventAdapter();
     }
-    return DualCanvasEventBus._instance;
+    return EventAdapter._instance;
   }
   
   // 转发所有核心方法到全局事件总线
@@ -50,25 +45,27 @@ class DualCanvasEventBus {
   
   // 增强方法
   isValidEvent(eventName) { return this._eventBus?.isValidEvent(eventName) || false; }
-  getSupportedEvents() { return Object.values(DualCanvasEvents); }
+  getSupportedEvents() { return Object.values(Events); }
   getEventTypeInfo(eventName) { return this._eventBus?.getEventTypeInfo(eventName); }
   hasListeners(event) { return this._eventBus?.hasListeners(event) || false; }
 }
+
+// 为了向后兼容性，保留EnhancedEventBus名称
+const EnhancedEventBus = EventAdapter;
 
 // 暴露到全局作用域（保持向后兼容）
 if (typeof window !== 'undefined') {
   // 确保全局事件常量已经存在
   if (!window.Events) {
-    window.Events = DualCanvasEvents;
+    window.Events = Events;
   }
   if (!window.EventTypes) {
     window.EventTypes = EventTypes;
   }
   
   // 提供适配器实例，保持向后兼容
-  window.DualCanvasEvents = DualCanvasEvents;
-  window.DualCanvasEventBus = DualCanvasEventBus;
-  window.dualCanvasEventBus = DualCanvasEventBus.getInstance();
+  window.EnhancedEventBus = EnhancedEventBus;
+  window.enhancedEventBus = EnhancedEventBus.getInstance();
 }
 
 // AMD模块系统支持
@@ -76,10 +73,10 @@ if (typeof define === 'function' && define.amd) {
   define(['../common/EventBus'], function(commonEventBus) {
     return {
       EventBus: commonEventBus,
-      DualCanvasEvents: DualCanvasEvents,
+      Events: Events,
       EventTypes: EventTypes,
-      DualCanvasEventBus: DualCanvasEventBus,
-      getInstance: () => DualCanvasEventBus.getInstance(),
+      EnhancedEventBus: EnhancedEventBus,
+      getInstance: () => EnhancedEventBus.getInstance(),
       eventBus: window.eventBus
     };
   });
@@ -89,10 +86,10 @@ if (typeof define === 'function' && define.amd) {
 if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
   module.exports = {
     EventBus: window.EventBus,
-    DualCanvasEvents: DualCanvasEvents,
+    Events: Events,
     EventTypes: EventTypes,
-    DualCanvasEventBus: DualCanvasEventBus,
-    getInstance: () => DualCanvasEventBus.getInstance(),
+    EnhancedEventBus: EnhancedEventBus,
+    getInstance: () => EnhancedEventBus.getInstance(),
     eventBus: window.eventBus
   };
 }
@@ -100,9 +97,8 @@ if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
 // 推荐使用方式：
 // 1. 直接使用全局事件总线实例和常量
 // const eventBus = window.eventBus;
-// eventBus.emit(Events.NODE_SELECTED, { nodeId: 'node1' });
+// eventBus.emit(Events.NODE_ADDED, { nodeId: 'node1', nodeData: {...} });
 
 // 2. 或者通过此适配器（保持向后兼容）
-// const { DualCanvasEvents, eventBus } = require('./EventBus');
-// eventBus.emit(DualCanvasEvents.NODE_SELECTED, { nodeId: 'node1' });
-
+// const { Events, eventBus } = require('./eventBus');
+// eventBus.emit(Events.NODE_ADDED, { nodeId: 'node1', nodeData: {...} });

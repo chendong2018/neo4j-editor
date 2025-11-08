@@ -62,15 +62,43 @@ class DualCanvasEditor {
     
     // 初始化事件监听
     this._initEventListeners();
+    this._bindEvents();
+  }
+  
+  /**
+   * 绑定编辑器内部事件
+   */
+  _bindEvents() {
+    console.log('[DualCanvasEditor] Binding events...');
+    
+    // 模式切换事件
+    this.modeManager.on('modeChanged', (mode, subType) => {
+      // 发布到事件总线，让所有监听的模块都能响应
+      this.eventBus.emit('modeChanged', mode, subType);
+    });
+    
+    // 数据变更事件
+    this.graphService.on('dataChanged', () => {
+      // 发布到事件总线，让所有模块知道数据已变更
+      this.eventBus.emit('dataChanged');
+    });
+    
+    // 网络上下文变更事件
+    this.graphService.on('networkContextChanged', (contextId) => {
+      // 发布到事件总线
+      this.eventBus.emit('networkContextChanged', contextId);
+    });
   }
   
   /**
    * 初始化事件监听器
    */
   _initEventListeners() {
+    console.log('[DualCanvasEditor] Initializing event bus listeners...');
+    
     // 监听模式切换事件
-    this.eventBus.on('modeChanged', (newMode) => {
-      console.log(`模式已切换为: ${newMode}`);
+    this.eventBus.on('modeChanged', (mode, subType) => {
+      console.log(`[DualCanvasEditor] 模式已切换为: ${mode} ${subType ? '(' + subType + ')' : ''}`);
       // 更新UI状态
     });
     
@@ -86,13 +114,50 @@ class DualCanvasEditor {
     
     // 监听关系网上下文切换事件
     this.eventBus.on('networkContextChanged', (parentId) => {
+      console.log('[DualCanvasEditor] 网络上下文变更为:', parentId);
       this.networkCanvasManager.setContextParent(parentId);
     });
     
     // 监听数据变更事件
     this.eventBus.on('dataChanged', () => {
+      console.log('[DualCanvasEditor] 数据已变更，刷新画布');
       this.treeCanvasManager.refresh();
       this.networkCanvasManager.refresh();
+      
+      // 发布画布更新事件
+      this.eventBus.emit('canvasesUpdated');
+    });
+    
+    // 监听节点创建事件
+    this.eventBus.on('createNode', (data) => {
+      console.log('[DualCanvasEditor] 节点创建事件:', data);
+      // 数据已由graphService更新，这里负责确保视图同步
+      this.treeCanvasManager.refresh();
+      this.networkCanvasManager.refresh();
+    });
+    
+    // 监听关系创建事件
+    this.eventBus.on('createRelationship', (data) => {
+      console.log('[DualCanvasEditor] 关系创建事件:', data);
+      // 关系创建后更新视图
+      this.networkCanvasManager.refresh();
+    });
+    
+    // 监听节点删除事件
+    this.eventBus.on('deleteNode', (nodeId) => {
+      console.log('[DualCanvasEditor] 节点删除事件:', nodeId);
+      // 节点删除后更新视图
+      this.treeCanvasManager.refresh();
+      this.networkCanvasManager.refresh();
+    });
+    
+    // 监听右键菜单显示事件
+    this.eventBus.on('showContextMenu', (data) => {
+      console.log('[DualCanvasEditor] 显示上下文菜单事件:', data);
+      // 委托给ContextMenuManager处理
+      if (this.contextMenuManager) {
+        this.contextMenuManager.show(data.position.x, data.position.y, data.menuItems);
+      }
     });
   }
   
@@ -209,6 +274,9 @@ class DualCanvasEditor {
    * 初始化编辑器
    */
   init() {
+    console.log('[DualCanvasEditor] 初始化编辑器...');
+    
+    // 初始化各组件
     this.treeCanvasManager.init();
     this.networkCanvasManager.init();
     this.contextMenuManager.init();
@@ -216,7 +284,7 @@ class DualCanvasEditor {
     // 设置默认模式
     this.modeManager.setMode('select');
     
-    console.log('双画布编辑器初始化完成');
+    console.log('[DualCanvasEditor] 双画布编辑器初始化完成');
   }
   
   /**
@@ -248,3 +316,6 @@ class DualCanvasEditor {
 if (!window.DualCanvasEditor) {
   window.DualCanvasEditor = DualCanvasEditor;
 }
+
+// 导出事件总线
+window.EventBus = EventBus;

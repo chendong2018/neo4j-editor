@@ -3,50 +3,53 @@
  * 提供便捷的初始化方法
  */
 
-// 确保在浏览器环境中正常工作
-if (typeof window === 'undefined') {
-  // Node.js环境中的兼容性处理
-  globalThis.window = {};
-}
-
-// 生成唯一ID的工具函数
+import BaseRenderer from './baseRenderer.js';
+import TreeCanvas from './treeCanvas.js';
+import NetworkCanvas from './networkCanvas.js';
+console.log('render/index loaded')
+/**
+ * 生成唯一ID的工具函数
+ * @param {string} prefix - ID前缀
+ * @returns {string} 唯一ID
+ */
 function generateUniqueId(prefix = '') {
   return prefix + Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 }
 
 /**
  * 创建树画布渲染器
- * @param {string} containerId - 容器元素ID
+ * @param {string|HTMLElement} container - 容器元素ID或DOM元素
  * @param {Object} options - 配置选项
  * @returns {TreeCanvas} 树画布渲染器实例
  */
-function createTreeCanvas(containerId, options = {}) {
-  if (!window.TreeCanvas) {
+function createTreeCanvas(container, options = {}) {
+  console.log('tree:', TreeCanvas);
+  if (!TreeCanvas) {
     throw new Error('TreeCanvas 模块未加载');
   }
   
-  const treeCanvas = new window.TreeCanvas(containerId);
+  const treeCanvas = new TreeCanvas(container);
   
   // 应用配置选项
   if (options.config && typeof treeCanvas.updateConfig === 'function') {
     treeCanvas.updateConfig(options.config);
   }
-  
+  console.log('treeCanvas:', treeCanvas);
   return treeCanvas;
 }
 
 /**
  * 创建关系网画布渲染器
- * @param {string} containerId - 容器元素ID
+ * @param {string|HTMLElement} container - 容器元素ID或DOM元素
  * @param {Object} options - 配置选项
  * @returns {NetworkCanvas} 关系网画布渲染器实例
  */
-function createNetworkCanvas(containerId, options = {}) {
-  if (!window.NetworkCanvas) {
+function createNetworkCanvas(container, options = {}) {
+  if (!NetworkCanvas) {
     throw new Error('NetworkCanvas 模块未加载');
   }
   
-  const networkCanvas = new window.NetworkCanvas(containerId);
+  const networkCanvas = new NetworkCanvas(container);
   
   // 应用配置选项
   if (options.config && typeof networkCanvas.updateConfig === 'function') {
@@ -62,13 +65,13 @@ function createNetworkCanvas(containerId, options = {}) {
 
 /**
  * 创建双视图渲染器（同时包含树视图和关系网视图）
- * @param {Object} containerIds - 容器ID对象 { tree: string, network: string }
+ * @param {Object} containerIds - 容器ID对象 { tree: string|HTMLElement, network: string|HTMLElement }
  * @param {Object} options - 配置选项
  * @returns {Object} 包含两个渲染器实例的对象
  */
 function createDualViewRenderer(containerIds, options = {}) {
   if (!containerIds || !containerIds.tree || !containerIds.network) {
-    throw new Error('必须提供 tree 和 network 容器ID');
+    throw new Error('必须提供 tree 和 network 容器');
   }
   
   const treeCanvas = createTreeCanvas(containerIds.tree, options.treeOptions);
@@ -86,6 +89,18 @@ function createDualViewRenderer(containerIds, options = {}) {
     render(data, context = null) {
       treeCanvas.render(data);
       networkCanvas.render(data, context);
+    },
+    
+    /**
+     * 重置两个视图
+     */
+    resetView() {
+      if (typeof treeCanvas.resetView === 'function') {
+        treeCanvas.resetView();
+      }
+      if (typeof networkCanvas.resetView === 'function') {
+        networkCanvas.resetView();
+      }
     },
     
     /**
@@ -163,35 +178,23 @@ const Neo4jRenderers = {
   generateMockData
 };
 
-// 导出模块
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = Neo4jRenderers;
-} else if (typeof window !== 'undefined') {
+// 暴露到全局作用域，以便直接通过script标签引入时也能使用
+if (typeof window !== 'undefined') {
+  // 暴露创建函数
+  window.createTreeCanvas = createTreeCanvas;
+  window.createNetworkCanvas = createNetworkCanvas;
+  window.createDualViewRenderer = createDualViewRenderer;
+  
+  // 暴露类（如果它们在作用域中可用）
+  if (typeof TreeCanvas !== 'undefined') {
+    window.TreeCanvas = TreeCanvas;
+  }
+  if (typeof NetworkCanvas !== 'undefined') {
+    window.NetworkCanvas = NetworkCanvas;
+  }
+  
+  // 暴露整个API对象
   window.Neo4jRenderers = Neo4jRenderers;
 }
 
-// 自动加载必要的脚本（仅在浏览器环境中）
-if (typeof window !== 'undefined' && !window.BaseRenderer) {
-  (function loadRequiredScripts() {
-    const scripts = [
-      'js/render/baseRenderer.js',
-      'js/render/treeCanvas.js',
-      'js/render/networkCanvas.js'
-    ];
-    
-    let loadedCount = 0;
-    
-    scripts.forEach(scriptPath => {
-      const script = document.createElement('script');
-      script.src = scriptPath;
-      script.onload = () => {
-        loadedCount++;
-        if (loadedCount === scripts.length) {
-          // 所有脚本加载完成后更新API引用
-          console.log('渲染器脚本加载完成');
-        }
-      };
-      document.head.appendChild(script);
-    });
-  })();
-}
+export default Neo4jRenderers;
