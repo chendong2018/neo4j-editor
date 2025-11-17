@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/api/graphapi.ts","./src/router/index.ts","./src/store/graphstore.ts","./src/types/graph.ts","./src/app.vue","./src/views/dualcanvasview.vue","./src/views/homeview.vue"],"version":"5.9.3"}

@@ -1,0 +1,32 @@
+{
+    "name": "neo4j-editor-vue",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "preview": "vite preview",
+        "build": "vite build",
+        "dev": "vite"
+    },
+    "dependencies": {
+        "d3": "^7.9.0",
+        "font-awesome": "^4.7.0",
+        "neo4j-driver": "^6.0.1",
+        "pinia": "^3.0.4"
+    },
+    "devDependencies": {
+        "@element-plus/icons-vue": "^2.3.2",
+        "@tailwindcss/postcss": "^4.1.17",
+        "@types/node": "^24.10.0",
+        "@vitejs/plugin-vue": "^6.0.1",
+        "autoprefixer": "^10.4.21",
+        "axios": "^1.13.2",
+        "cytoscape": "^3.33.1",
+        "element-plus": "^2.11.7",
+        "postcss": "^8.5.6",
+        "tailwindcss": "^4.1.17",
+        "typescript": "^5.9.3",
+        "vite": "^7.2.2",
+        "vue": "^3.5.24",
+        "vue-router": "^4.6.3"
+    }
+}
